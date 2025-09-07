@@ -520,17 +520,16 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Div(
-                            Button(
-                                "Download selected and summarize",
-                                type="submit",
-                                formaction="/download",
-                                formmethod="post",
-                                cls="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
-                            ),
-                            A("Back", href="/", cls="inline-flex items-center px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                            cls="grid grid-flow-col auto-cols-max gap-3 items-center justify-start"
+                        Button(
+                            "Download selected and summarize",
+                            type="submit",
+                            formaction="/download",
+                            formmethod="post",
+                            cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                         ),
+                        A("Back", href="/", cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        cls="flex items-center gap-3"
+                    ),
                         Div(
                             Input(type="number", name="previous_days", value="7", min="1", max="60", cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
                             Button("Show previous matches", type="submit", formaction="/previous", formmethod="post", cls="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"),
@@ -828,17 +827,16 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Div(
-                            Button(
-                                "Download selected and summarize",
-                                type="submit",
-                                formaction="/download",
-                                formmethod="post",
-                                cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
-                            ),
-                            A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                            cls="grid grid-flow-col auto-cols-max gap-3 items-center justify-start"
+                        Button(
+                            "Download selected and summarize",
+                            type="submit",
+                            formaction="/download",
+                            formmethod="post",
+                            cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                         ),
+                        A("Back", href="/", cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        cls="flex items-center gap-3"
+                    ),
                         cls="mt-4"
                     ),
                     cls=""
