@@ -1,0 +1,14 @@
+[project]
+name = "arxiv-helper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pypdf>=5.0.0",
+    "openai>=1.40.0",
+    "python-dateutil>=2.9.0.post0",
+    "uvicorn>=0.30.0",
+    "python-fasthtml>=0.12.25",
+    "arxiv>=2.1.0",
+]

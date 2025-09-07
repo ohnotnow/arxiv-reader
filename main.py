@@ -1,0 +1,384 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import arxiv
+from dateutil import parser as dateparser
+from openai import OpenAI
+from pypdf import PdfReader
+
+# FastHTML for app + HTML building
+from fasthtml.common import *  # type: ignore
+
+
+# ---------- Configuration ----------
+DATA_DIR = Path("papers")
+STATE_FILE = Path("state.json")
+
+# Map user-friendly names to arXiv category codes
+CATEGORIES: Dict[str, str] = {
+    "Artificial Intelligence (cs.AI)": "cs.AI",
+    "Computation and Language (cs.CL)": "cs.CL",
+    "Computer Vision (cs.CV)": "cs.CV",
+    "Machine Learning (cs.LG)": "cs.LG",
+    "Robotics (cs.RO)": "cs.RO",
+    "Information Retrieval (cs.IR)": "cs.IR",
+    "Stat.ML (stat.ML)": "stat.ML",
+}
+
+
+# ---------- Utilities ----------
+def _load_state() -> Dict[str, str]:
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_state(state: Dict[str, str]) -> None:
+    STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def _default_since() -> datetime:
+    # Default to one week ago, UTC
+    return datetime.now(timezone.utc) - timedelta(days=7)
+
+
+def _human(dt: datetime) -> str:
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def _slugify(name: str) -> str:
+    name = re.sub(r"[\/:*?\"<>|]+", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name[:180]
+
+
+def _pdf_text(path: Path) -> str:
+    try:
+        with path.open("rb") as f:
+            reader = PdfReader(f)
+            texts = []
+            for page in reader.pages:
+                t = page.extract_text() or ""
+                if t:
+                    texts.append(t)
+            return "\n\n".join(texts)
+    except Exception as e:
+        return f"[Error extracting text: {e}]"
+
+
+def arxiv_fetch_sync(category: str, since: datetime, interest: Optional[str] = None, max_results: int = 200) -> List[Dict[str, Any]]:
+    """Fetch recent arXiv entries via the `arxiv` package and filter by date/interest."""
+    client = arxiv.Client()
+    # We request by category and sort descending by submission date.
+    search = arxiv.Search(query=f"cat:{category}", max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
+
+    items: List[Dict[str, Any]] = []
+    interest_lc = (interest or "").strip().lower()
+    for r in client.results(search):
+        pub_dt = r.published if isinstance(r.published, datetime) else None
+        if not pub_dt:
+            continue
+        pub_dt = pub_dt.astimezone(timezone.utc)
+        if pub_dt < since:
+            # Because results are sorted by submitted date descending, we can break optionally.
+            # But to be safe, continue and let the client handle page size.
+            continue
+
+        title = (r.title or "").strip()
+        summary = (r.summary or "").strip()
+        authors = ", ".join(a.name for a in getattr(r, "authors", []) if getattr(a, "name", None))
+        entry_id = r.entry_id or ""
+        # Extract arXiv id from entry_id URL
+        arxid = None
+        m = re.search(r"arxiv\.org/(?:abs|pdf)/([\w.\-]+)", entry_id)
+        if m:
+            arxid = m.group(1)
+        else:
+            # Fallback to r.get_short_id() if present
+            short_id = getattr(r, "get_short_id", None)
+            if callable(short_id):
+                arxid = short_id()
+        if not arxid:
+            continue
+
+        if interest_lc:
+            blob = f"{title}\n{summary}".lower()
+            if interest_lc not in blob:
+                continue
+
+        items.append(
+            {
+                "id": entry_id,
+                "arxiv_id": arxid,
+                "title": title,
+                "authors": authors,
+                "published": pub_dt,
+                "summary": summary,
+                "pdf_url": getattr(r, "pdf_url", None),
+            }
+        )
+
+    return items
+
+
+async def arxiv_fetch(category: str, since: datetime, interest: Optional[str] = None, max_results: int = 200) -> List[Dict[str, Any]]:
+    return await asyncio.to_thread(arxiv_fetch_sync, category, since, interest, max_results)
+
+
+def openai_summarize(text: str, style: str) -> str:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return "[OPENAI_API_KEY is not set; skipping summarization.]"
+    client = OpenAI(api_key=api_key)
+    # Truncate to a reasonable length to control tokens
+    snippet = text
+    if len(snippet) > 100_000:
+        snippet = snippet[:100_000]
+    try:
+        resp = client.responses.create(
+            model="gpt-5-mini",
+            input=[
+                {
+                    "role": "system",
+                    "content": "You summarize academic PDFs.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Summarize the following paper for this audience: '{style}'.\n\nReturn 6-10 bullet points covering: goal, method, data, key results, limitations, and why it matters.\n\nText begins:\n{snippet}",
+                },
+            ],
+            max_output_tokens=800,
+        )
+        # Responses API returns output in a .output_text convenience property in some SDKs;
+        # here we extract from choices[0].message.content if needed.
+        # The python SDK exposes .output_text for convenience.
+        return resp.output_text  # type: ignore[attr-defined]
+    except Exception as e:
+        return f"[OpenAI API error: {e}]"
+
+
+# ---------- Web App (FastHTML) ----------
+
+tailwind = Script(src="https://cdn.tailwindcss.com")
+
+app, rt = fast_app(hdrs=(tailwind,))
+
+
+def category_select(selected: str | None = None):
+    opts = [Option(name, value=code, selected=(code == selected)) for name, code in CATEGORIES.items()]
+    return Select(*opts, name="category", cls="border rounded p-2 w-full")
+
+
+def paper_row(item: Dict[str, Any]) -> Any:
+    pid = item["arxiv_id"]
+    title = item["title"]
+    authors = item["authors"]
+    pub = _human(item["published"]) if isinstance(item["published"], datetime) else str(item["published"]) 
+
+    summary = item.get("summary", "")
+    return Div(
+        Div(
+            Input(type="checkbox", name="selected", value=pid, cls="mr-3 h-5 w-5"),
+            Div(
+                H3(title, cls="font-semibold text-lg"),
+                P(f"Authors: {authors}", cls="text-sm text-slate-600"),
+                P(f"Published: {pub}", cls="text-xs text-slate-500"),
+                P(summary, cls="mt-2 text-sm"),
+                cls="flex-1"
+            ),
+            cls="flex items-start gap-2"
+        ),
+        cls="p-4 border rounded-lg shadow-sm bg-white"
+    )
+
+
+@rt("/")
+def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None):
+    state = _load_state()
+    cat_code = category or next(iter(CATEGORIES.values()))
+    last_run_iso = state.get(cat_code)
+    last_run = dateparser.parse(last_run_iso) if last_run_iso else _default_since()
+
+    default_style = (
+        summary_style
+        or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"
+    )
+
+    return Titled(
+        "arXiv Helper",
+        Div(
+            H1("arXiv Helper", cls="text-2xl font-bold mb-2"),
+            P("Find new papers by category since last run.", cls="text-slate-600 mb-4"),
+            Div(
+                Form(
+                    Div(
+                        Label("Category", cls="font-medium"),
+                        category_select(cat_code),
+                        cls="flex flex-col gap-1"
+                    ),
+                    Div(
+                        Label("Specific interest (optional)", cls="font-medium"),
+                        Input(name="interest", placeholder="e.g. retrieval-augmented generation", value=(interest or ""), cls="border rounded p-2 w-full"),
+                        cls="flex flex-col gap-1"
+                    ),
+                    Div(
+                        Label("Summary style", cls="font-medium"),
+                        Textarea(default_style, name="summary_style", rows=4, cls="border rounded p-2 w-full"),
+                        cls="flex flex-col gap-1"
+                    ),
+                    Div(
+                        Button("Fetch", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
+                        cls="mt-2"
+                    ),
+                    cls="space-y-4"
+                ),
+                Div(
+                    P(f"Last run for {cat_code}: {_human(last_run)}", cls="text-sm text-slate-600"),
+                    cls="mt-4"
+                ),
+                cls="bg-slate-50 p-4 rounded-lg border"
+            ),
+            cls="container mx-auto max-w-3xl p-4"
+        ),
+    )
+
+
+@rt("/fetch")
+async def fetch(category: str, interest: str = "", summary_style: str = ""):
+    state = _load_state()
+    since = dateparser.parse(state.get(category)) if state.get(category) else _default_since()
+
+    items = await arxiv_fetch(category, since, interest or None)
+
+    # Update state last-run now
+    state[category] = datetime.now(timezone.utc).isoformat()
+    _save_state(state)
+
+    results = [paper_row(it) for it in items]
+    if not results:
+        results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600")]  # type: ignore[assignment]
+
+    return Titled(
+        "arXiv Results",
+        Div(
+            H1("Results", cls="text-2xl font-bold mb-2"),
+            Form(
+                Div(
+                    Input(type="hidden", name="category", value=category),
+                    Input(type="hidden", name="interest", value=interest),
+                    Textarea(summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding", name="summary_style", cls="hidden"),
+                ),
+                Div(*results, cls="grid gap-4"),
+                Div(
+                    Button("Download selected and summarize", type="submit", formaction="/download", formmethod="post", cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"),
+                    A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 rounded"),
+                    cls="mt-4"
+                ),
+                cls=""
+            ),
+            cls="container mx-auto max-w-3xl p-4"
+        ),
+    )
+
+
+def _download_pdf_via_arxiv(arxid: str, dest: Path) -> None:
+    client = arxiv.Client()
+    # Fetch the specific paper by id and use helper to download
+    result = next(client.results(arxiv.Search(id_list=[arxid])))
+    # arxiv library writes the file; supply dirpath and filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    result.download_pdf(dirpath=str(dest.parent), filename=dest.name)
+
+
+@rt("/download")
+async def download(request: Request, category: str = "", interest: str = "", summary_style: str = ""):
+    form = await request.form()
+    # Multiple checkbox values under key 'selected'
+    selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
+    if not selected_ids:
+        return Titled(
+            "No Selection",
+            Div(
+                P("No papers selected."),
+                A("Back", href="/", cls="inline-block mt-2 px-3 py-2 bg-slate-200 rounded"),
+                cls="p-4"
+            )
+        )
+
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    out_dir = DATA_DIR / ts
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    results_ui: List[Any] = []
+    for arxid in selected_ids:
+        safe_name = _slugify(arxid)
+        pdf_path = out_dir / f"{safe_name}.pdf"
+        txt_path = out_dir / f"{safe_name}.txt"
+        sum_path = out_dir / f"{safe_name}.summary.txt"
+
+        try:
+            # Use arxiv package to download the PDF
+            await asyncio.to_thread(_download_pdf_via_arxiv, arxid, pdf_path)
+            text = _pdf_text(pdf_path)
+            txt_path.write_text(text)
+            summary = openai_summarize(text, summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding")
+            sum_path.write_text(summary)
+            results_ui.append(
+                Div(
+                    H3(f"{arxid}", cls="font-semibold"),
+                    P("Downloaded and summarized."),
+                    Ul(
+                        Li(A("PDF", href=f"/files/{pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
+                        Li(A("Text", href=f"/files/{txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
+                        Li(A("Summary", href=f"/files/{sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
+                    ),
+                    cls="p-3 border rounded"
+                )
+            )
+        except Exception as e:
+            results_ui.append(Div(H3(f"{arxid}"), P(f"Error: {e}", cls="text-red-600"), cls="p-3 border rounded"))
+
+    return Titled(
+        "Done",
+        Div(
+            H1("Download + Summaries", cls="text-2xl font-bold mb-3"),
+            P(f"Saved under {out_dir}", cls="text-sm text-slate-600"),
+            Div(*results_ui, cls="mt-4 space-y-3"),
+            Div(
+                A("Back", href="/", cls="inline-block mt-4 px-4 py-2 bg-slate-200 rounded"),
+            ),
+            cls="container mx-auto max-w-3xl p-4"
+        ),
+    )
+
+
+# Basic file serving for downloaded outputs (dev convenience)
+@rt("/files/{path:path}")
+def files(path: str):
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        return Response("Not Found", status_code=404)
+    mime = "application/octet-stream"
+    if p.suffix == ".pdf":
+        mime = "application/pdf"
+    elif p.suffix == ".txt":
+        mime = "text/plain; charset=utf-8"
+    return Response(p.read_bytes(), headers={"content-type": mime})
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Ensure data dir exists
+    DATA_DIR.mkdir(exist_ok=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
