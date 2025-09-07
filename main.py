@@ -16,6 +16,7 @@ from pypdf import PdfReader
 
 # FastHTML for app + HTML building
 from fasthtml.common import *  # type: ignore
+from starlette.responses import FileResponse
 
 # Silence HF tokenizers fork warnings (Chroma default embedder)
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -520,6 +521,22 @@ def _download_pdf_via_arxiv(arxid: str, dest: Path) -> None:
     result.download_pdf(dirpath=str(dest.parent), filename=dest.name)
 
 
+@rt("/download_file")
+def download_file(path: str):
+    root = Path.cwd().resolve()
+    p = (root / Path(path.lstrip("/"))).resolve()
+    try:
+        p.relative_to(root)
+    except Exception:
+        print(f"[DEBUG] download_file forbidden path={path} abs={p}", flush=True)
+        return Response("Forbidden", status_code=403)
+    if not p.exists() or not p.is_file():
+        print(f"[DEBUG] download_file 404 path={path} abs={p}", flush=True)
+        return Response("Not Found", status_code=404)
+    print(f"[DEBUG] download_file OK path={path} abs={p}", flush=True)
+    return FileResponse(str(p))
+
+
 @rt("/download")
 async def download(request: Request, category: str = "", interest: str = "", summary_style: str = ""):
     form = await request.form()
@@ -572,9 +589,9 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     H3(f"{arxid}", cls="font-semibold"),
                     P("Downloaded and summarized." if pdf_ok and txt_ok else "Saved with warnings (files missing?)", cls="text-sm"),
                     Ul(
-                        Li(A("PDF", href=f"/files/{pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if pdf_ok else Li("PDF missing", cls="text-red-600"),
-                        Li(A("Text", href=f"/files/{txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if txt_ok else Li("Text missing", cls="text-red-600"),
-                        Li(A("Summary", href=f"/files/{sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if sum_ok else Li("Summary missing", cls="text-red-600"),
+                        Li(A("PDF", href=f"/download_file?path={pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if pdf_ok else Li("PDF missing", cls="text-red-600"),
+                        Li(A("Text", href=f"/download_file?path={txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if txt_ok else Li("Text missing", cls="text-red-600"),
+                        Li(A("Summary", href=f"/download_file?path={sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if sum_ok else Li("Summary missing", cls="text-red-600"),
                     ),
                     cls="p-3 border rounded"
                 )
@@ -732,14 +749,19 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
 @rt("/files/{path:path}")
 def files(path: str):
     root = Path.cwd().resolve()
-    p = (root / path).resolve()
+    p = (root / path.lstrip("/"))
     try:
-        # Prevent directory traversal
-        if root not in p.parents and p != root:
-            return Response("Forbidden", status_code=403)
+        p = p.resolve()
+        # Prevent directory traversal: require files under project root
+        p.relative_to(root)
     except Exception:
+        print(f"[DEBUG] files forbidden: path={path}", flush=True)
         return Response("Forbidden", status_code=403)
-    if not p.exists() or not p.is_file():
+
+    exists = p.exists()
+    is_file = p.is_file()
+    print(f"[DEBUG] files request path={path} abs={p} exists={exists} is_file={is_file}", flush=True)
+    if not exists or not is_file:
         return Response("Not Found", status_code=404)
     mime = "application/octet-stream"
     if p.suffix == ".pdf":
