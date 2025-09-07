@@ -150,8 +150,22 @@ def _chroma_client() -> chromadb.Client:
 
 def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI, items: List[Dict[str, Any]]) -> None:
     ids = [it["arxiv_id"] for it in items]
-    existing = coll.get(ids=ids, include=["ids"]) if ids else {"ids": []}
-    have = set(existing.get("ids", []) or [])
+    if not ids:
+        return
+    try:
+        existing = coll.get(ids=ids)
+        existing_ids = existing.get("ids") or []
+        # Some versions return a list; others may align order but include Nones. Normalize.
+        if isinstance(existing_ids, list) and existing_ids and isinstance(existing_ids[0], list):
+            flat = []
+            for sub in existing_ids:
+                flat.extend([x for x in sub if x])
+            have = set(flat)
+        else:
+            have = set(x for x in existing_ids if x)
+    except Exception:
+        have = set()
+
     missing_items = [it for it in items if it["arxiv_id"] not in have]
     if missing_items:
         coll.add(
@@ -179,7 +193,7 @@ def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 
 
     # Query entire cache, then filter to our current items by id, preserving score order
     want = min(max(len(items), top_k * 2), 2000)
-    q = cache.query(query_texts=[interest], n_results=want, include=["ids"])  # type: ignore[arg-type]
+    q = cache.query(query_texts=[interest], n_results=want)  # ids are always returned
     ordered_ids: List[str] = (q.get("ids") or [[ ]])[0]
     allowed = {it["arxiv_id"] for it in items}
     filtered_order = [i for i in ordered_ids if i in allowed]
@@ -371,11 +385,13 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
 
     # Optional narrowing via Chroma embeddings
     narrowed_items = items
+    narrowing_error = None
     try:
         if (use_embeddings != "off") and interest:
             k = max(5, min(200, int(top_k or "50")))
             narrowed_items = narrow_with_chroma(items, interest, k)
-    except Exception:
+    except Exception as e:
+        narrowing_error = str(e)
         narrowed_items = items
 
     results = [paper_row(it) for it in narrowed_items]
@@ -402,6 +418,13 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         cls="mt-4"
                     ),
                     cls=""
+                ),
+                Div(
+                    P(
+                        f"Debug: fetched={len(items)} use_embeddings={'on' if use_embeddings!='off' else 'off'} top_k={top_k} narrowed={len(narrowed_items)} interest='{interest}'",
+                        cls="text-xs text-slate-500 dark:text-slate-400 mt-2"
+                    ),
+                    P(f"Chroma error: {narrowing_error}", cls="text-xs text-red-500") if narrowing_error else None,
                 ),
                 cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
             ),
@@ -497,7 +520,15 @@ def files(path: str):
 
 if __name__ == "__main__":
     import uvicorn
+    import sys
 
     # Ensure data dir exists
     DATA_DIR.mkdir(exist_ok=True)
+    if "--fresh" in sys.argv:
+        try:
+            if STATE_FILE.exists():
+                STATE_FILE.unlink()
+                print("--fresh: removed state.json")
+        except Exception as e:
+            print(f"--fresh: could not remove state.json: {e}")
     uvicorn.run(app, host="127.0.0.1", port=8000)
