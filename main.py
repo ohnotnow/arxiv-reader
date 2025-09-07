@@ -623,6 +623,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
     out_dir.mkdir(parents=True, exist_ok=True)
 
     results_ui: List[Any] = []
+    meta_client = arxiv.Client()
     for arxid in selected_ids:
         safe_name = _slugify(arxid)
         pdf_path = out_dir / f"{safe_name}.pdf"
@@ -632,6 +633,18 @@ async def download(request: Request, category: str = "", interest: str = "", sum
         try:
             # Use arxiv package to download the PDF
             await asyncio.to_thread(_download_pdf_via_arxiv, arxid, pdf_path)
+            # Fetch metadata for nicer display
+            title = arxid
+            authors = ""
+            published_str = ""
+            try:
+                r = next(meta_client.results(arxiv.Search(id_list=[arxid])))
+                title = (r.title or title).strip()
+                authors = ", ".join(a.name for a in getattr(r, "authors", []) if getattr(a, "name", None))
+                if isinstance(r.published, datetime):
+                    published_str = _human(r.published)
+            except Exception:
+                pass
             text = _pdf_text(pdf_path)
             txt_path.write_text(text)
             summary = openai_summarize(text, summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding")
@@ -656,14 +669,20 @@ async def download(request: Request, category: str = "", interest: str = "", sum
 
             results_ui.append(
                 Div(
-                    H3(f"{arxid}", cls="font-semibold"),
-                    P("Downloaded and summarized." if pdf_ok and txt_ok else "Saved with warnings (files missing?)", cls="text-sm"),
-                    Ul(
-                        Li(A("PDF", href=f"/files/pdf/{pdf_uid}", target="_blank", cls="text-blue-600 underline")) if pdf_uid else Li("PDF missing", cls="text-red-600"),
-                        Li(A("Text", href=f"/files/text/{txt_uid}", target="_blank", cls="text-blue-600 underline")) if txt_uid else Li("Text missing", cls="text-red-600"),
-                        Li(A("Summary", href=f"/files/summary/{sum_uid}", target="_blank", cls="text-blue-600 underline")) if sum_uid else Li("Summary missing", cls="text-red-600"),
+                    Div(
+                        A(title, href=f"https://arxiv.org/pdf/{arxid}.pdf", target="_blank", cls="text-xl font-semibold text-blue-600 hover:underline"),
+                        P(f"Authors: {authors}", cls="text-sm text-slate-600 dark:text-slate-300") if authors else None,
+                        P(f"Published: {published_str}", cls="text-xs text-slate-500 dark:text-slate-400") if published_str else None,
+                        cls="mb-2"
                     ),
-                    cls="p-3 border rounded"
+                    Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+                    Div(
+                        A("Open PDF", href=f"/files/pdf/{pdf_uid}", target="_blank", cls="text-blue-600 underline") if pdf_uid else None,
+                        A("Full text", href=f"/files/text/{txt_uid}", target="_blank", cls="ml-3 text-blue-600 underline") if txt_uid else None,
+                        A("Summary file", href=f"/files/summary/{sum_uid}", target="_blank", cls="ml-3 text-blue-600 underline") if sum_uid else None,
+                        cls="mt-3 text-sm"
+                    ),
+                    cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
                 )
             )
         except Exception as e:
