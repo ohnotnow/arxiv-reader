@@ -524,40 +524,34 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Div(
-                            Button(
-                                "Download selected and summarize",
-                                type="submit",
-                                formaction="/download",
-                                formmethod="post",
-                                cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
-                            ),
-                            A(
-                                "Back",
-                                href="/",
-                                cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
-                            ),
-                            cls="flex items-center gap-3",
+                        Button(
+                            "Download & Summarize",
+                            type="submit",
+                            formaction="/download",
+                            formmethod="post",
+                            cls="h-10 flex items-center justify-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
                         ),
-                        Div(
-                            Input(
-                                type="number",
-                                name="previous_days",
-                                value="7",
-                                min="1",
-                                max="60",
-                                cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900",
-                            ),
-                            Button(
-                                "Show previous matches",
-                                type="submit",
-                                formaction="/previous",
-                                formmethod="post",
-                                cls="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700",
-                            ),
-                            cls="flex items-center gap-2 mt-3",
+                        A(
+                            "Back",
+                            href="/",
+                            cls="h-10 flex items-center justify-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm",
                         ),
-                        cls="mt-4",
+                        Input(
+                            type="number",
+                            name="previous_days",
+                            value="7",
+                            min="1",
+                            max="60",
+                            cls="w-20 h-10 border rounded px-3 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center",
+                        ),
+                        Button(
+                            "Show previous matches",
+                            type="submit",
+                            formaction="/previous",
+                            formmethod="post",
+                            cls="h-10 flex items-center justify-center px-4 bg-slate-600 text-white rounded hover:bg-slate-700 font-medium text-sm",
+                        ),
+                        cls="grid grid-cols-2 gap-3 items-center mt-4",
                     ),
                     cls="",
                 ),
@@ -850,14 +844,14 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
                         Button(
-                            "Download selected and summarize",
+                            "Download & Summarize",
                             type="submit",
                             formaction="/download",
                             formmethod="post",
-                            cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                            cls="h-10 flex items-center justify-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
                         ),
-                        A("Back", href="/", cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                        cls="flex items-center gap-3 mt-4"
+                        A("Back", href="/", cls="h-10 flex items-center justify-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm"),
+                        cls="grid grid-cols-2 gap-3 items-center mt-4"
                     ),
                     cls=""
                 ),
