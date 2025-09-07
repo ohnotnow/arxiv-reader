@@ -529,12 +529,12 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                             type="submit",
                             formaction="/download",
                             formmethod="post",
-                            cls="h-10 flex items-center justify-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
+                            cls="h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
                         ),
                         A(
                             "Back",
                             href="/",
-                            cls="h-10 flex items-center justify-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm",
+                            cls="h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10",
                         ),
                         Input(
                             type="number",
@@ -549,7 +549,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                             type="submit",
                             formaction="/previous",
                             formmethod="post",
-                            cls="h-10 flex items-center justify-center px-4 bg-slate-600 text-white rounded hover:bg-slate-700 font-medium text-sm",
+                            cls="h-10 px-4 bg-slate-600 text-white rounded hover:bg-slate-700 font-medium text-sm",
                         ),
                         cls="grid grid-cols-2 gap-3 items-center mt-4",
                     ),
@@ -848,9 +848,9 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                             type="submit",
                             formaction="/download",
                             formmethod="post",
-                            cls="h-10 flex items-center justify-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
+                            cls="h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
                         ),
-                        A("Back", href="/", cls="h-10 flex items-center justify-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm"),
+                        A("Back", href="/", cls="h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10"),
                         cls="grid grid-cols-2 gap-3 items-center mt-4"
                     ),
                     cls=""
