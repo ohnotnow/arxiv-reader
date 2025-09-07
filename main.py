@@ -217,7 +217,7 @@ def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 
     # Query entire cache, then filter to our current items by id, preserving score order
     want = min(max(len(items), top_k * 2), 2000)
     # Filter results to just this category if we have one
-    where = {"$and": [{"category": category}]} if category else None
+    where = {"category": category} if category else None
     q = cache.query(query_texts=[interest], n_results=want, where=where)  # type: ignore[arg-type]
     ordered_ids: List[str] = (q.get("ids") or [[ ]])[0]
     allowed = {it["arxiv_id"] for it in items}
@@ -592,7 +592,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
     cache = client.get_or_create_collection(name="arxiv_cache")
 
     # Build category filter only; apply time filter in Python to support existing cache without numeric timestamps
-    where: Optional[Dict[str, Any]] = {"$and": [{"category": category}]} if category else None
+    where: Optional[Dict[str, Any]] = ({"category": category} if category else None)
 
     # If no interest or semantic filter off, do a recency-only fallback
     if not interest.strip() or use_embeddings == "off":
