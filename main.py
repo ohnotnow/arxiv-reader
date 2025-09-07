@@ -35,7 +35,7 @@ CATEGORIES: Dict[str, str] = {
 
 
 # ---------- Utilities ----------
-def _load_state() -> Dict[str, str]:
+def _load_state() -> Dict[str, Any]:
     if STATE_FILE.exists():
         try:
             return json.loads(STATE_FILE.read_text())
@@ -44,8 +44,29 @@ def _load_state() -> Dict[str, str]:
     return {}
 
 
-def _save_state(state: Dict[str, str]) -> None:
+def _save_state(state: Dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def _get_last_run(state: Dict[str, Any], category: str) -> Optional[str]:
+    # Backward compatible: legacy format stored directly at top level
+    if "last_run" in state and isinstance(state["last_run"], dict):
+        return state["last_run"].get(category)
+    return state.get(category)
+
+
+def _set_last_run(state: Dict[str, Any], category: str, iso: str) -> None:
+    if "last_run" not in state or not isinstance(state.get("last_run"), dict):
+        state["last_run"] = {}
+    state["last_run"][category] = iso
+
+
+def _get_prefs(state: Dict[str, Any]) -> Dict[str, Any]:
+    return state.get("prefs", {}) if isinstance(state.get("prefs"), dict) else {}
+
+
+def _set_prefs(state: Dict[str, Any], prefs: Dict[str, Any]) -> None:
+    state["prefs"] = prefs
 
 
 def _default_since() -> datetime:
@@ -293,16 +314,21 @@ def paper_row(item: Dict[str, Any]) -> Any:
 @rt("/")
 def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None):
     state = _load_state()
-    cat_code = category or next(iter(CATEGORIES.values()))
-    last_run_iso = state.get(cat_code)
+    prefs = _get_prefs(state)
+    cat_code = category or prefs.get("category") or next(iter(CATEGORIES.values()))
+    last_run_iso = _get_last_run(state, cat_code)
     last_run = dateparser.parse(last_run_iso) if last_run_iso else _default_since()
 
     default_style = (
         summary_style
-        or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"
+        or prefs.get(
+            "summary_style",
+            "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+        )
     )
-    default_use_emb = "on" if (use_embeddings is None) else use_embeddings
-    default_top_k = top_k or 50
+    default_use_emb = (use_embeddings if use_embeddings is not None else prefs.get("use_embeddings", "on"))
+    default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 50)))
+    interest_value = interest if interest is not None else prefs.get("interest", "")
 
     return Titled(
         "arXiv Helper",
@@ -322,7 +348,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             Input(
                                 name="interest",
                                 placeholder="e.g. retrieval-augmented generation",
-                                value=(interest or ""),
+                                value=interest_value,
                                 cls=(
                                     "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
                                     "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
@@ -390,13 +416,26 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 @rt("/fetch")
 async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50"):
     state = _load_state()
-    since = dateparser.parse(state.get(category)) if state.get(category) else _default_since()
+    since_iso = _get_last_run(state, category)
+    since = dateparser.parse(since_iso) if since_iso else _default_since()
 
     # If using embeddings, fetch without simple substring filter to avoid over-pruning
     items = await arxiv_fetch(category, since, None if (use_embeddings != "off" and interest) else (interest or None))
 
     # Update state last-run now
-    state[category] = datetime.now(timezone.utc).isoformat()
+    _set_last_run(state, category, datetime.now(timezone.utc).isoformat())
+    # Save user prefs for next time
+    prefs = _get_prefs(state)
+    prefs.update(
+        {
+            "category": category,
+            "interest": interest,
+            "use_embeddings": ("off" if use_embeddings == "off" else "on"),
+            "top_k": int(top_k or "50"),
+            "summary_style": summary_style,
+        }
+    )
+    _set_prefs(state, prefs)
     _save_state(state)
 
     # Optional narrowing via Chroma embeddings
