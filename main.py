@@ -520,11 +520,22 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Button("Download selected and summarize", type="submit", formaction="/download", formmethod="post", cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"),
-                        A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                        # Show previous matches over the last N days (default 7)
-                        Input(type="number", name="previous_days", value="7", min="1", max="60", cls="ml-3 w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
-                        Button("Show previous matches", type="submit", formaction="/previous", formmethod="post", cls="ml-2 px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"),
+                        Div(
+                            Button(
+                                "Download selected and summarize",
+                                type="submit",
+                                formaction="/download",
+                                formmethod="post",
+                                cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                            ),
+                            A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                            cls="flex items-center gap-3"
+                        ),
+                        Div(
+                            Input(type="number", name="previous_days", value="7", min="1", max="60", cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
+                            Button("Show previous matches", type="submit", formaction="/previous", formmethod="post", cls="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"),
+                            cls="flex items-center gap-2 mt-3"
+                        ),
                         cls="mt-4"
                     ),
                     cls=""
@@ -690,7 +701,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             results_ui.append(Div(H3(f"{arxid}"), P(f"Error: {e}", cls="text-red-600"), cls="p-3 border rounded"))
 
     return Titled(
-        "Done",
+        "Download + Summaries",
         Div(
             H1("Download + Summaries", cls="text-2xl font-bold mb-3"),
             P(f"Saved under {out_dir}", cls="text-sm text-slate-600 dark:text-slate-300"),
@@ -817,14 +828,17 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Button(
-                            "Download selected and summarize",
-                            type="submit",
-                            formaction="/download",
-                            formmethod="post",
-                            cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                        Div(
+                            Button(
+                                "Download selected and summarize",
+                                type="submit",
+                                formaction="/download",
+                                formmethod="post",
+                                cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                            ),
+                            A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                            cls="flex items-center gap-3"
                         ),
-                        A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
                         cls="mt-4"
                     ),
                     cls=""
