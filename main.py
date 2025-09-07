@@ -664,23 +664,24 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 flush=True,
             )
             pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
-            txt_uid = _register_file(txt_path, "text", "text/plain; charset=utf-8") if txt_ok else None
-            sum_uid = _register_file(sum_path, "summary", "text/plain; charset=utf-8") if sum_ok else None
 
             results_ui.append(
                 Div(
                     Div(
-                        A(title, href=f"https://arxiv.org/pdf/{arxid}.pdf", target="_blank", cls="text-xl font-semibold text-blue-600 hover:underline"),
+                        H3(title, cls="text-xl font-semibold text-slate-900 dark:text-slate-100"),
                         P(f"Authors: {authors}", cls="text-sm text-slate-600 dark:text-slate-300") if authors else None,
                         P(f"Published: {published_str}", cls="text-xs text-slate-500 dark:text-slate-400") if published_str else None,
                         cls="mb-2"
                     ),
                     Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
                     Div(
-                        A("Open PDF", href=f"/files/pdf/{pdf_uid}", target="_blank", cls="text-blue-600 underline") if pdf_uid else None,
-                        A("Full text", href=f"/files/text/{txt_uid}", target="_blank", cls="ml-3 text-blue-600 underline") if txt_uid else None,
-                        A("Summary file", href=f"/files/summary/{sum_uid}", target="_blank", cls="ml-3 text-blue-600 underline") if sum_uid else None,
-                        cls="mt-3 text-sm"
+                        A(
+                            "Open PDF",
+                            href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxid}.pdf"),
+                            target="_blank",
+                            cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                        ),
+                        cls="mt-3"
                     ),
                     cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
                 )

@@ -43,5 +43,10 @@
     "rel": "papers/20250907-192028/2509.03380v1.summary.txt",
     "kind": "summary",
     "mime": "text/plain; charset=utf-8"
+  },
+  "334457a8-fa21-4154-8c9b-b6ce2566ffbb": {
+    "rel": "papers/20250907-192423/2509.03380v1.pdf",
+    "kind": "pdf",
+    "mime": "application/pdf"
   }
 }
