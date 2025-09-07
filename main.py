@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import arxiv
+import chromadb
 from dateutil import parser as dateparser
 from openai import OpenAI
 from pypdf import PdfReader
@@ -77,7 +78,7 @@ def _pdf_text(path: Path) -> str:
 
 
 def arxiv_fetch_sync(category: str, since: datetime, interest: Optional[str] = None, max_results: int = 200) -> List[Dict[str, Any]]:
-    """Fetch recent arXiv entries via the `arxiv` package and filter by date/interest."""
+    """Fetch recent arXiv entries via the `arxiv` package and optionally filter by simple substring interest."""
     client = arxiv.Client()
     # We request by category and sort descending by submission date.
     search = arxiv.Search(query=f"cat:{category}", max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
@@ -133,6 +134,64 @@ def arxiv_fetch_sync(category: str, since: datetime, interest: Optional[str] = N
 
 async def arxiv_fetch(category: str, since: datetime, interest: Optional[str] = None, max_results: int = 200) -> List[Dict[str, Any]]:
     return await asyncio.to_thread(arxiv_fetch_sync, category, since, interest, max_results)
+
+
+# ---------- Chroma narrowing ----------
+
+def _chroma_client() -> chromadb.Client:
+    # Persistent cache across runs
+    path = ".chroma"
+    try:
+        return chromadb.PersistentClient(path=path)
+    except Exception:
+        # Fallback to in-memory if persistent not available
+        return chromadb.Client()
+
+
+def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI, items: List[Dict[str, Any]]) -> None:
+    ids = [it["arxiv_id"] for it in items]
+    existing = coll.get(ids=ids, include=["ids"]) if ids else {"ids": []}
+    have = set(existing.get("ids", []) or [])
+    missing_items = [it for it in items if it["arxiv_id"] not in have]
+    if missing_items:
+        coll.add(
+            ids=[it["arxiv_id"] for it in missing_items],
+            documents=[f"{it['title']}\n\n{it.get('summary','')}" for it in missing_items],
+            metadatas=[
+                {
+                    "title": it["title"],
+                    "authors": it.get("authors", ""),
+                    "published": (it.get("published").isoformat() if isinstance(it.get("published"), datetime) else str(it.get("published"))),
+                }
+                for it in missing_items
+            ],
+        )
+
+
+def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 50) -> List[Dict[str, Any]]:
+    if not items or not interest.strip():
+        return items
+
+    client = _chroma_client()
+    cache = client.get_or_create_collection(name="arxiv_cache")
+    # Ensure embeddings for current items are cached
+    _ensure_cached_embeddings(cache, items)
+
+    # Query entire cache, then filter to our current items by id, preserving score order
+    want = min(max(len(items), top_k * 2), 2000)
+    q = cache.query(query_texts=[interest], n_results=want, include=["ids"])  # type: ignore[arg-type]
+    ordered_ids: List[str] = (q.get("ids") or [[ ]])[0]
+    allowed = {it["arxiv_id"] for it in items}
+    filtered_order = [i for i in ordered_ids if i in allowed]
+    if not filtered_order:
+        return items[:top_k]
+    id_to_item = {it["arxiv_id"]: it for it in items}
+    out = [id_to_item[i] for i in filtered_order if i in id_to_item]
+    if len(out) < top_k:
+        # pad with remaining items (original order) to reach top_k
+        seen = set(filtered_order)
+        out.extend([it for it in items if it["arxiv_id"] not in seen])
+    return out[:top_k]
 
 
 def openai_summarize(text: str, style: str) -> str:
@@ -210,7 +269,7 @@ def paper_row(item: Dict[str, Any]) -> Any:
 
 
 @rt("/")
-def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None):
+def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None):
     state = _load_state()
     cat_code = category or next(iter(CATEGORIES.values()))
     last_run_iso = state.get(cat_code)
@@ -220,6 +279,8 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         summary_style
         or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"
     )
+    default_use_emb = "on" if (use_embeddings is None) else use_embeddings
+    default_top_k = top_k or 50
 
     return Titled(
         "arXiv Helper",
@@ -261,6 +322,23 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             cls="flex flex-col gap-1"
                         ),
                         Div(
+                            Label("Narrow results with embeddings", cls="font-medium"),
+                            Div(
+                                Input(type="checkbox", name="use_embeddings", checked=(default_use_emb != "off"), cls="h-4 w-4 mr-2"),
+                                Label("Use semantic filter", cls="text-sm text-slate-700 dark:text-slate-300"),
+                                cls="flex items-center"
+                            ),
+                            cls="flex flex-col gap-1"
+                        ),
+                        Div(
+                            Label("Top K results", cls="font-medium"),
+                            Input(type="number", name="top_k", value=str(default_top_k), min="5", max="200", cls=(
+                                "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                            )),
+                            cls="flex flex-col gap-1"
+                        ),
+                        Div(
                             Button("Fetch", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
                             cls="mt-2"
                         ),
@@ -280,17 +358,27 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 
 
 @rt("/fetch")
-async def fetch(category: str, interest: str = "", summary_style: str = ""):
+async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50"):
     state = _load_state()
     since = dateparser.parse(state.get(category)) if state.get(category) else _default_since()
 
-    items = await arxiv_fetch(category, since, interest or None)
+    # If using embeddings, fetch without simple substring filter to avoid over-pruning
+    items = await arxiv_fetch(category, since, None if (use_embeddings != "off" and interest) else (interest or None))
 
     # Update state last-run now
     state[category] = datetime.now(timezone.utc).isoformat()
     _save_state(state)
 
-    results = [paper_row(it) for it in items]
+    # Optional narrowing via Chroma embeddings
+    narrowed_items = items
+    try:
+        if (use_embeddings != "off") and interest:
+            k = max(5, min(200, int(top_k or "50")))
+            narrowed_items = narrow_with_chroma(items, interest, k)
+    except Exception:
+        narrowed_items = items
+
+    results = [paper_row(it) for it in narrowed_items]
     if not results:
         results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
@@ -303,6 +391,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = ""):
                     Div(
                         Input(type="hidden", name="category", value=category),
                         Input(type="hidden", name="interest", value=interest),
+                        Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
+                        Input(type="hidden", name="top_k", value=str(top_k)),
                         Textarea(summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding", name="summary_style", cls="hidden"),
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),

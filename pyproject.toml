@@ -11,4 +11,5 @@ dependencies = [
     "uvicorn>=0.30.0",
     "python-fasthtml>=0.12.25",
     "arxiv>=2.1.0",
+    "chromadb>=1.0.20",
 ]
