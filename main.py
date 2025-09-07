@@ -268,7 +268,15 @@ def paper_row(item: Dict[str, Any]) -> Any:
     summary = item.get("summary", "")
     return Div(
         Div(
-            Input(type="checkbox", name="selected", value=pid, cls="mr-3 h-5 w-5"),
+            Input(
+                type="checkbox",
+                name="selected",
+                value=pid,
+                cls=(
+                    "mr-3 h-5 w-5 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
+                    "bg-white dark:bg-slate-900 accent-emerald-600 focus:ring-2 focus:ring-emerald-500"
+                ),
+            ),
             Div(
                 H3(title, cls="font-semibold text-lg"),
                 P(f"Authors: {authors}", cls="text-sm text-slate-600 dark:text-slate-300"),
@@ -338,7 +346,15 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         Div(
                             Label("Narrow results with embeddings", cls="font-medium"),
                             Div(
-                                Input(type="checkbox", name="use_embeddings", checked=(default_use_emb != "off"), cls="h-4 w-4 mr-2"),
+                                Input(
+                                    type="checkbox",
+                                    name="use_embeddings",
+                                    checked=(default_use_emb != "off"),
+                                    cls=(
+                                        "h-4 w-4 mr-2 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
+                                        "bg-white dark:bg-slate-900 accent-blue-600 focus:ring-2 focus:ring-blue-500"
+                                    ),
+                                ),
                                 Label("Use semantic filter", cls="text-sm text-slate-700 dark:text-slate-300"),
                                 cls="flex items-center"
                             ),
@@ -393,6 +409,19 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     except Exception as e:
         narrowing_error = str(e)
         narrowed_items = items
+    # Server-side debug log
+    print(
+        "[DEBUG] fetch",
+        {
+            "fetched": len(items),
+            "semantic": "on" if use_embeddings != "off" else "off",
+            "top_k": top_k,
+            "narrowed": len(narrowed_items),
+            "interest": interest,
+            "error": narrowing_error,
+        },
+        flush=True,
+    )
 
     results = [paper_row(it) for it in narrowed_items]
     if not results:
@@ -516,6 +545,17 @@ def files(path: str):
     elif p.suffix == ".txt":
         mime = "text/plain; charset=utf-8"
     return Response(p.read_bytes(), headers={"content-type": mime})
+
+
+@app.on_event("startup")
+async def _maybe_fresh_state() -> None:  # type: ignore[attr-defined]
+    if os.getenv("FRESH") == "1":
+        try:
+            if STATE_FILE.exists():
+                STATE_FILE.unlink()
+                print("[DEBUG] FRESH=1: removed state.json", flush=True)
+        except Exception as e:
+            print(f"[DEBUG] FRESH=1: could not remove state.json: {e}", flush=True)
 
 
 if __name__ == "__main__":
