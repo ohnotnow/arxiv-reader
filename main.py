@@ -526,9 +526,9 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                                 type="submit",
                                 formaction="/download",
                                 formmethod="post",
-                                cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                                cls="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                             ),
-                            A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                            A("Back", href="/", cls="inline-flex items-center px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
                             cls="flex items-center gap-3"
                         ),
                         Div(
@@ -813,7 +813,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
         results = [Div("No cached matches in the selected window.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Titled(
-        "Previous Matches",
+        "arXiv Helper",
         Div(
             Div(
                 H1("Previous Matches", cls="text-2xl font-bold mb-4"),
