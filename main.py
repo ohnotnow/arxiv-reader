@@ -176,7 +176,14 @@ app, rt = fast_app(hdrs=(tailwind,))
 
 def category_select(selected: str | None = None):
     opts = [Option(name, value=code, selected=(code == selected)) for name, code in CATEGORIES.items()]
-    return Select(*opts, name="category", cls="border rounded p-2 w-full")
+    return Select(
+        *opts,
+        name="category",
+        cls=(
+            "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+        ),
+    )
 
 
 def paper_row(item: Dict[str, Any]) -> Any:
@@ -191,14 +198,14 @@ def paper_row(item: Dict[str, Any]) -> Any:
             Input(type="checkbox", name="selected", value=pid, cls="mr-3 h-5 w-5"),
             Div(
                 H3(title, cls="font-semibold text-lg"),
-                P(f"Authors: {authors}", cls="text-sm text-slate-600"),
-                P(f"Published: {pub}", cls="text-xs text-slate-500"),
+                P(f"Authors: {authors}", cls="text-sm text-slate-600 dark:text-slate-300"),
+                P(f"Published: {pub}", cls="text-xs text-slate-500 dark:text-slate-400"),
                 P(summary, cls="mt-2 text-sm"),
                 cls="flex-1"
             ),
             cls="flex items-start gap-2"
         ),
-        cls="p-4 border rounded-lg shadow-sm bg-white"
+        cls="p-4 border rounded-lg shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700 w-full"
     )
 
 
@@ -217,38 +224,57 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     return Titled(
         "arXiv Helper",
         Div(
-            H1("arXiv Helper", cls="text-2xl font-bold mb-2"),
-            P("Find new papers by category since last run.", cls="text-slate-600 mb-4"),
             Div(
-                Form(
-                    Div(
-                        Label("Category", cls="font-medium"),
-                        category_select(cat_code),
-                        cls="flex flex-col gap-1"
-                    ),
-                    Div(
-                        Label("Specific interest (optional)", cls="font-medium"),
-                        Input(name="interest", placeholder="e.g. retrieval-augmented generation", value=(interest or ""), cls="border rounded p-2 w-full"),
-                        cls="flex flex-col gap-1"
-                    ),
-                    Div(
-                        Label("Summary style", cls="font-medium"),
-                        Textarea(default_style, name="summary_style", rows=4, cls="border rounded p-2 w-full"),
-                        cls="flex flex-col gap-1"
-                    ),
-                    Div(
-                        Button("Fetch", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
-                        cls="mt-2"
-                    ),
-                    cls="space-y-4"
-                ),
+                H1("arXiv Helper", cls="text-2xl font-bold mb-2"),
+                P("Find new papers by category since last run.", cls="text-slate-600 dark:text-slate-300 mb-4"),
                 Div(
-                    P(f"Last run for {cat_code}: {_human(last_run)}", cls="text-sm text-slate-600"),
-                    cls="mt-4"
+                    Form(
+                        Div(
+                            Label("Category", cls="font-medium"),
+                            category_select(cat_code),
+                            cls="flex flex-col gap-1"
+                        ),
+                        Div(
+                            Label("Specific interest (optional)", cls="font-medium"),
+                            Input(
+                                name="interest",
+                                placeholder="e.g. retrieval-augmented generation",
+                                value=(interest or ""),
+                                cls=(
+                                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                ),
+                            ),
+                            cls="flex flex-col gap-1"
+                        ),
+                        Div(
+                            Label("Summary style", cls="font-medium"),
+                            Textarea(
+                                default_style,
+                                name="summary_style",
+                                rows=4,
+                                cls=(
+                                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                ),
+                            ),
+                            cls="flex flex-col gap-1"
+                        ),
+                        Div(
+                            Button("Fetch", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
+                            cls="mt-2"
+                        ),
+                        cls="space-y-4"
+                    ),
+                    Div(
+                        P(f"Last run for {cat_code}: {_human(last_run)}", cls="text-sm text-slate-600 dark:text-slate-300"),
+                        cls="mt-4"
+                    ),
+                    cls="bg-white dark:bg-slate-800 dark:border-slate-700 p-4 rounded-lg border"
                 ),
-                cls="bg-slate-50 p-4 rounded-lg border"
+                cls="container mx-auto max-w-3xl p-4"
             ),
-            cls="container mx-auto max-w-3xl p-4"
+            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
         ),
     )
 
@@ -266,27 +292,30 @@ async def fetch(category: str, interest: str = "", summary_style: str = ""):
 
     results = [paper_row(it) for it in items]
     if not results:
-        results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600")]  # type: ignore[assignment]
+        results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Titled(
         "arXiv Results",
         Div(
-            H1("Results", cls="text-2xl font-bold mb-2"),
-            Form(
-                Div(
-                    Input(type="hidden", name="category", value=category),
-                    Input(type="hidden", name="interest", value=interest),
-                    Textarea(summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding", name="summary_style", cls="hidden"),
+            Div(
+                H1("Results", cls="text-2xl font-bold mb-4"),
+                Form(
+                    Div(
+                        Input(type="hidden", name="category", value=category),
+                        Input(type="hidden", name="interest", value=interest),
+                        Textarea(summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding", name="summary_style", cls="hidden"),
+                    ),
+                    Div(*results, cls="grid grid-cols-1 gap-4"),
+                    Div(
+                        Button("Download selected and summarize", type="submit", formaction="/download", formmethod="post", cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"),
+                        A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        cls="mt-4"
+                    ),
+                    cls=""
                 ),
-                Div(*results, cls="grid gap-4"),
-                Div(
-                    Button("Download selected and summarize", type="submit", formaction="/download", formmethod="post", cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"),
-                    A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 rounded"),
-                    cls="mt-4"
-                ),
-                cls=""
+                cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
             ),
-            cls="container mx-auto max-w-3xl p-4"
+            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
         ),
     )
 
@@ -310,7 +339,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             "No Selection",
             Div(
                 P("No papers selected."),
-                A("Back", href="/", cls="inline-block mt-2 px-3 py-2 bg-slate-200 rounded"),
+                A("Back", href="/", cls="inline-block mt-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
                 cls="p-4"
             )
         )
@@ -352,10 +381,10 @@ async def download(request: Request, category: str = "", interest: str = "", sum
         "Done",
         Div(
             H1("Download + Summaries", cls="text-2xl font-bold mb-3"),
-            P(f"Saved under {out_dir}", cls="text-sm text-slate-600"),
+            P(f"Saved under {out_dir}", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(*results_ui, cls="mt-4 space-y-3"),
             Div(
-                A("Back", href="/", cls="inline-block mt-4 px-4 py-2 bg-slate-200 rounded"),
+                A("Back", href="/", cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
             ),
             cls="container mx-auto max-w-3xl p-4"
         ),
