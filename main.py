@@ -857,9 +857,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                             cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                         ),
                         A("Back", href="/", cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                        cls="flex items-center gap-3"
-                    ),
-                        cls="mt-4"
+                        cls="flex items-center gap-3 mt-4"
                     ),
                     cls=""
                 ),
