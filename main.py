@@ -817,7 +817,14 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        Button(
+                            "Download selected and summarize",
+                            type="submit",
+                            formaction="/download",
+                            formmethod="post",
+                            cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                        ),
+                        A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
                         cls="mt-4"
                     ),
                     cls=""
