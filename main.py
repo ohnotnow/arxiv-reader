@@ -169,7 +169,7 @@ def _chroma_client() -> chromadb.Client:
         return chromadb.Client()
 
 
-def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI, items: List[Dict[str, Any]]) -> None:
+def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI, items: List[Dict[str, Any]], category: Optional[str] = None) -> None:
     ids = [it["arxiv_id"] for it in items]
     if not ids:
         return
@@ -197,24 +197,28 @@ def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI
                     "title": it["title"],
                     "authors": it.get("authors", ""),
                     "published": (it.get("published").isoformat() if isinstance(it.get("published"), datetime) else str(it.get("published"))),
+                    "published_ts": (it.get("published").timestamp() if isinstance(it.get("published"), datetime) else None),
+                    "category": category or "",
                 }
                 for it in missing_items
             ],
         )
 
 
-def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 50) -> List[Dict[str, Any]]:
+def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 50, category: Optional[str] = None) -> List[Dict[str, Any]]:
     if not items or not interest.strip():
         return items
 
     client = _chroma_client()
     cache = client.get_or_create_collection(name="arxiv_cache")
     # Ensure embeddings for current items are cached
-    _ensure_cached_embeddings(cache, items)
+    _ensure_cached_embeddings(cache, items, category)
 
     # Query entire cache, then filter to our current items by id, preserving score order
     want = min(max(len(items), top_k * 2), 2000)
-    q = cache.query(query_texts=[interest], n_results=want)  # ids are always returned
+    # Filter results to just this category if we have one
+    where = {"$and": [{"category": category}]} if category else None
+    q = cache.query(query_texts=[interest], n_results=want, where=where)  # type: ignore[arg-type]
     ordered_ids: List[str] = (q.get("ids") or [[ ]])[0]
     allowed = {it["arxiv_id"] for it in items}
     filtered_order = [i for i in ordered_ids if i in allowed]
@@ -444,7 +448,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     try:
         if (use_embeddings != "off") and interest:
             k = max(5, min(200, int(top_k or "50")))
-            narrowed_items = narrow_with_chroma(items, interest, k)
+            narrowed_items = narrow_with_chroma(items, interest, k, category)
     except Exception as e:
         narrowing_error = str(e)
         narrowed_items = items
@@ -483,6 +487,9 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                     Div(
                         Button("Download selected and summarize", type="submit", formaction="/download", formmethod="post", cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"),
                         A("Back", href="/", cls="ml-3 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        # Show previous matches over the last N days (default 7)
+                        Input(type="number", name="previous_days", value="7", min="1", max="60", cls="ml-3 w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
+                        Button("Show previous matches", type="submit", formaction="/previous", formmethod="post", cls="ml-2 px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"),
                         cls="mt-4"
                     ),
                     cls=""
@@ -568,6 +575,138 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 A("Back", href="/", cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
             ),
             cls="container mx-auto max-w-3xl p-4"
+        ),
+    )
+
+
+@rt("/previous")
+async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "50", previous_days: str = "7", summary_style: str = ""):
+    # Look back over past N days in the Chroma cache and return top-k matches
+    k = max(5, min(200, int(top_k or "50")))
+    days = max(1, min(60, int(previous_days or "7")))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_iso = cutoff.isoformat()
+    cutoff_ts = cutoff.timestamp()
+
+    client = _chroma_client()
+    cache = client.get_or_create_collection(name="arxiv_cache")
+
+    # Build category filter only; apply time filter in Python to support existing cache without numeric timestamps
+    where: Optional[Dict[str, Any]] = {"$and": [{"category": category}]} if category else None
+
+    # If no interest or semantic filter off, do a recency-only fallback
+    if not interest.strip() or use_embeddings == "off":
+        q = cache.get(where=where)
+        ids = q.get("ids") or []
+        mds = q.get("metadatas") or []
+        docs = q.get("documents") or []
+        # Flatten possible nested lists
+        if ids and isinstance(ids[0], list):
+            flat = []
+            for sub in ids:
+                flat.extend(sub)
+            ids = flat
+            mds = [x for sub in (mds or []) for x in (sub or [])]
+            docs = [x for sub in (docs or []) for x in (sub or [])]
+        # Filter by cutoff and sort by published desc
+        items_all: List[Dict[str, Any]] = []
+        for i, md, doc in zip(ids, mds, docs):
+            md = md or {}
+            pub = None
+            ts = md.get("published_ts")
+            if isinstance(ts, (int, float)):
+                try:
+                    pub = datetime.fromtimestamp(ts, tz=timezone.utc)
+                except Exception:
+                    pub = None
+            if not pub:
+                try:
+                    pub = dateparser.parse((md or {}).get("published", ""))
+                except Exception:
+                    pub = None
+            items_all.append(
+                {
+                    "id": f"https://arxiv.org/abs/{i}",
+                    "arxiv_id": i,
+                    "title": md.get("title", ""),
+                    "authors": md.get("authors", ""),
+                    "published": pub or cutoff,
+                    "summary": doc or "",
+                }
+            )
+        items_all = [x for x in items_all if (x["published"] or cutoff) >= cutoff]
+        items_all.sort(key=lambda x: x["published"] or cutoff, reverse=True)
+        narrowed_items = items_all[:k]
+    else:
+        # Query top matches by interest, then filter by time in Python
+        want = max(k * 5, k)
+        res = cache.query(query_texts=[interest], n_results=want, where=where)
+        ids = (res.get("ids") or [[]])[0]
+        mds = (res.get("metadatas") or [[]])[0]
+        docs = (res.get("documents") or [[]])[0]
+        items_all: List[Dict[str, Any]] = []
+        for i, md, doc in zip(ids, mds, docs):
+            md = md or {}
+            pub = None
+            ts = md.get("published_ts")
+            if isinstance(ts, (int, float)):
+                try:
+                    pub = datetime.fromtimestamp(ts, tz=timezone.utc)
+                except Exception:
+                    pub = None
+            if not pub:
+                try:
+                    pub = dateparser.parse(md.get("published", ""))
+                except Exception:
+                    pub = None
+            if pub and pub.timestamp() < cutoff_ts:
+                continue
+            items_all.append(
+                {
+                    "id": f"https://arxiv.org/abs/{i}",
+                    "arxiv_id": i,
+                    "title": md.get("title", ""),
+                    "authors": md.get("authors", ""),
+                    "published": pub or cutoff,
+                    "summary": doc or "",
+                }
+            )
+        narrowed_items = items_all[:k]
+
+    results = [paper_row(it) for it in narrowed_items]
+    if not results:
+        results = [Div("No cached matches in the selected window.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
+
+    return Titled(
+        "Previous Matches",
+        Div(
+            Div(
+                H1("Previous Matches", cls="text-2xl font-bold mb-4"),
+                Form(
+                    Div(
+                        Input(type="hidden", name="category", value=category),
+                        Input(type="hidden", name="interest", value=interest),
+                        Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
+                        Input(type="hidden", name="top_k", value=str(k)),
+                        Input(type="hidden", name="previous_days", value=str(days)),
+                        Textarea(summary_style or "", name="summary_style", cls="hidden"),
+                    ),
+                    Div(*results, cls="grid grid-cols-1 gap-4"),
+                    Div(
+                        A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                        cls="mt-4"
+                    ),
+                    cls=""
+                ),
+                Div(
+                    P(
+                        f"Debug: previous-days={days} top_k={k} interest='{interest}'",
+                        cls="text-xs text-slate-500 dark:text-slate-400 mt-2"
+                    ),
+                ),
+                cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
+            ),
+            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
         ),
     )
 
