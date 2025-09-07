@@ -25,6 +25,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # ---------- Configuration ----------
 DATA_DIR = Path("papers")
 STATE_FILE = Path("state.json")
+FILE_INDEX = Path("file_index.json")
 
 # Map user-friendly names to arXiv category codes
 CATEGORIES: Dict[str, str] = {
@@ -50,6 +51,35 @@ def _load_state() -> Dict[str, Any]:
 
 def _save_state(state: Dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+# ---------- File index (UUID -> safe file path) ----------
+def _load_file_index() -> Dict[str, Any]:
+    if FILE_INDEX.exists():
+        try:
+            return json.loads(FILE_INDEX.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_file_index(idx: Dict[str, Any]) -> None:
+    FILE_INDEX.write_text(json.dumps(idx, indent=2))
+
+
+def _register_file(path: Path, kind: str, mime: Optional[str] = None) -> str:
+    uid = str(uuid.uuid4())
+    root = Path.cwd().resolve()
+    p = path.resolve()
+    rel = p.relative_to(root)
+    idx = _load_file_index()
+    idx[uid] = {
+        "rel": str(rel),
+        "kind": kind,
+        "mime": mime or ("application/pdf" if kind == "pdf" else "text/plain; charset=utf-8"),
+    }
+    _save_file_index(idx)
+    return uid
 
 
 def _get_last_run(state: Dict[str, Any], category: str) -> Optional[str]:
@@ -521,6 +551,41 @@ def _download_pdf_via_arxiv(arxid: str, dest: Path) -> None:
     result.download_pdf(dirpath=str(dest.parent), filename=dest.name)
 
 
+def _serve_by_uuid(uid: str, expected_kind: str) -> Response:
+    idx = _load_file_index()
+    meta = idx.get(uid)
+    if not isinstance(meta, dict):
+        return Response("Not Found", status_code=404)
+    if meta.get("kind") != expected_kind:
+        return Response("Not Found", status_code=404)
+    rel = meta.get("rel")
+    if not rel:
+        return Response("Not Found", status_code=404)
+    root = Path.cwd().resolve()
+    p = (root / rel).resolve()
+    try:
+        p.relative_to(root)
+    except Exception:
+        return Response("Forbidden", status_code=403)
+    if not p.exists() or not p.is_file():
+        return Response("Not Found", status_code=404)
+    mime = meta.get("mime") or ("application/pdf" if expected_kind == "pdf" else "text/plain; charset=utf-8")
+    return FileResponse(str(p), media_type=mime, filename=p.name)
+
+
+@rt("/files/pdf/{uid}")
+def file_pdf(uid: str):
+    return _serve_by_uuid(uid, "pdf")
+
+
+@rt("/files/text/{uid}")
+def file_text(uid: str):
+    return _serve_by_uuid(uid, "text")
+
+
+@rt("/files/summary/{uid}")
+def file_summary(uid: str):
+    return _serve_by_uuid(uid, "summary")
 @rt("/download_file")
 def download_file(path: str):
     root = Path.cwd().resolve()
@@ -584,14 +649,18 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 },
                 flush=True,
             )
+            pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
+            txt_uid = _register_file(txt_path, "text", "text/plain; charset=utf-8") if txt_ok else None
+            sum_uid = _register_file(sum_path, "summary", "text/plain; charset=utf-8") if sum_ok else None
+
             results_ui.append(
                 Div(
                     H3(f"{arxid}", cls="font-semibold"),
                     P("Downloaded and summarized." if pdf_ok and txt_ok else "Saved with warnings (files missing?)", cls="text-sm"),
                     Ul(
-                        Li(A("PDF", href=f"/download_file?path={pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if pdf_ok else Li("PDF missing", cls="text-red-600"),
-                        Li(A("Text", href=f"/download_file?path={txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if txt_ok else Li("Text missing", cls="text-red-600"),
-                        Li(A("Summary", href=f"/download_file?path={sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if sum_ok else Li("Summary missing", cls="text-red-600"),
+                        Li(A("PDF", href=f"/files/pdf/{pdf_uid}", target="_blank", cls="text-blue-600 underline")) if pdf_uid else Li("PDF missing", cls="text-red-600"),
+                        Li(A("Text", href=f"/files/text/{txt_uid}", target="_blank", cls="text-blue-600 underline")) if txt_uid else Li("Text missing", cls="text-red-600"),
+                        Li(A("Summary", href=f"/files/summary/{sum_uid}", target="_blank", cls="text-blue-600 underline")) if sum_uid else Li("Summary missing", cls="text-red-600"),
                     ),
                     cls="p-3 border rounded"
                 )
@@ -745,30 +814,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
     )
 
 
-# Basic file serving for downloaded outputs (dev convenience)
-@rt("/files/{path:path}")
-def files(path: str):
-    root = Path.cwd().resolve()
-    p = (root / path.lstrip("/"))
-    try:
-        p = p.resolve()
-        # Prevent directory traversal: require files under project root
-        p.relative_to(root)
-    except Exception:
-        print(f"[DEBUG] files forbidden: path={path}", flush=True)
-        return Response("Forbidden", status_code=403)
-
-    exists = p.exists()
-    is_file = p.is_file()
-    print(f"[DEBUG] files request path={path} abs={p} exists={exists} is_file={is_file}", flush=True)
-    if not exists or not is_file:
-        return Response("Not Found", status_code=404)
-    mime = "application/octet-stream"
-    if p.suffix == ".pdf":
-        mime = "application/pdf"
-    elif p.suffix == ".txt":
-        mime = "text/plain; charset=utf-8"
-    return Response(p.read_bytes(), headers={"content-type": mime})
+# Removed legacy generic /files route in favor of UUID-based routes above
 
 
 @app.on_event("startup")
