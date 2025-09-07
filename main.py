@@ -529,7 +529,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                                 cls="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                             ),
                             A("Back", href="/", cls="inline-flex items-center px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                            cls="flex items-center gap-3"
+                            cls="grid grid-flow-col auto-cols-max gap-3 items-center justify-start"
                         ),
                         Div(
                             Input(type="number", name="previous_days", value="7", min="1", max="60", cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
@@ -837,7 +837,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                                 cls="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700",
                             ),
                             A("Back", href="/", cls="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                            cls="flex items-center gap-3"
+                            cls="grid grid-flow-col auto-cols-max gap-3 items-center justify-start"
                         ),
                         cls="mt-4"
                     ),
