@@ -1,0 +1,17 @@
+{
+  "f87aa651-107d-49c4-a0e6-7e991cd6d6e9": {
+    "rel": "papers/20250907-190900/2509.03380v1.pdf",
+    "kind": "pdf",
+    "mime": "application/pdf"
+  },
+  "f919944e-716f-44ba-ab9a-4b6d9bc01a16": {
+    "rel": "papers/20250907-190900/2509.03380v1.txt",
+    "kind": "text",
+    "mime": "text/plain; charset=utf-8"
+  },
+  "c00c0911-9977-47ff-ad07-d34c0ac1030b": {
+    "rel": "papers/20250907-190900/2509.03380v1.summary.txt",
+    "kind": "summary",
+    "mime": "text/plain; charset=utf-8"
+  }
+}
