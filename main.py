@@ -17,6 +17,9 @@ from pypdf import PdfReader
 # FastHTML for app + HTML building
 from fasthtml.common import *  # type: ignore
 
+# Silence HF tokenizers fork warnings (Chroma default embedder)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 
 # ---------- Configuration ----------
 DATA_DIR = Path("papers")
@@ -550,14 +553,28 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             txt_path.write_text(text)
             summary = openai_summarize(text, summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding")
             sum_path.write_text(summary)
+            # Post-write sanity check
+            pdf_ok = pdf_path.exists()
+            txt_ok = txt_path.exists()
+            sum_ok = sum_path.exists()
+            print(
+                "[DEBUG] saved",
+                {
+                    "pdf": str(pdf_path),
+                    "txt": str(txt_path),
+                    "sum": str(sum_path),
+                    "exists": {"pdf": pdf_ok, "txt": txt_ok, "sum": sum_ok},
+                },
+                flush=True,
+            )
             results_ui.append(
                 Div(
                     H3(f"{arxid}", cls="font-semibold"),
-                    P("Downloaded and summarized."),
+                    P("Downloaded and summarized." if pdf_ok and txt_ok else "Saved with warnings (files missing?)", cls="text-sm"),
                     Ul(
-                        Li(A("PDF", href=f"/files/{pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
-                        Li(A("Text", href=f"/files/{txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
-                        Li(A("Summary", href=f"/files/{sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")),
+                        Li(A("PDF", href=f"/files/{pdf_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if pdf_ok else Li("PDF missing", cls="text-red-600"),
+                        Li(A("Text", href=f"/files/{txt_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if txt_ok else Li("Text missing", cls="text-red-600"),
+                        Li(A("Summary", href=f"/files/{sum_path.as_posix()}", target="_blank", cls="text-blue-600 underline")) if sum_ok else Li("Summary missing", cls="text-red-600"),
                     ),
                     cls="p-3 border rounded"
                 )
@@ -714,7 +731,14 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
 # Basic file serving for downloaded outputs (dev convenience)
 @rt("/files/{path:path}")
 def files(path: str):
-    p = Path(path)
+    root = Path.cwd().resolve()
+    p = (root / path).resolve()
+    try:
+        # Prevent directory traversal
+        if root not in p.parents and p != root:
+            return Response("Forbidden", status_code=403)
+    except Exception:
+        return Response("Forbidden", status_code=403)
     if not p.exists() or not p.is_file():
         return Response("Not Found", status_code=404)
     mime = "application/octet-stream"
