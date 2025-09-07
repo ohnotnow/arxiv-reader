@@ -506,7 +506,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
         results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Titled(
-        "arXiv Results",
+        "ArXiv Results",
         Div(
             Div(
                 H1("Results", cls="text-2xl font-bold mb-4"),
@@ -516,39 +516,61 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         Input(type="hidden", name="interest", value=interest),
                         Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
                         Input(type="hidden", name="top_k", value=str(top_k)),
-                        Textarea(summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding", name="summary_style", cls="hidden"),
+                        Textarea(
+                            summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                            name="summary_style",
+                            cls="hidden",
+                        ),
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
-                        Button(
-                            "Download selected and summarize",
-                            type="submit",
-                            formaction="/download",
-                            formmethod="post",
-                            cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
-                        ),
-                        A("Back", href="/", cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
-                        cls="flex items-center gap-3"
-                    ),
                         Div(
-                            Input(type="number", name="previous_days", value="7", min="1", max="60", cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"),
-                            Button("Show previous matches", type="submit", formaction="/previous", formmethod="post", cls="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"),
-                            cls="flex items-center gap-2 mt-3"
+                            Button(
+                                "Download selected and summarize",
+                                type="submit",
+                                formaction="/download",
+                                formmethod="post",
+                                cls="h-10 inline-flex items-center px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700",
+                            ),
+                            A(
+                                "Back",
+                                href="/",
+                                cls="h-10 inline-flex items-center px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+                            ),
+                            cls="flex items-center gap-3",
                         ),
-                        cls="mt-4"
+                        Div(
+                            Input(
+                                type="number",
+                                name="previous_days",
+                                value="7",
+                                min="1",
+                                max="60",
+                                cls="w-24 border rounded p-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900",
+                            ),
+                            Button(
+                                "Show previous matches",
+                                type="submit",
+                                formaction="/previous",
+                                formmethod="post",
+                                cls="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700",
+                            ),
+                            cls="flex items-center gap-2 mt-3",
+                        ),
+                        cls="mt-4",
                     ),
-                    cls=""
+                    cls="",
                 ),
                 Div(
                     P(
                         f"Debug: fetched={len(items)} use_embeddings={'on' if use_embeddings!='off' else 'off'} top_k={top_k} narrowed={len(narrowed_items)} interest='{interest}'",
-                        cls="text-xs text-slate-500 dark:text-slate-400 mt-2"
+                        cls="text-xs text-slate-500 dark:text-slate-400 mt-2",
                     ),
                     P(f"Chroma error: {narrowing_error}", cls="text-xs text-red-500") if narrowing_error else None,
                 ),
-                cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
+                cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border",
             ),
-            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100",
         ),
     )
 
