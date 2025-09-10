@@ -9,6 +9,12 @@ Simple web app to:
 - Download PDFs locally and extract text
 - Summarize each paper with OpenAI `gpt-5-mini`
 
+### Screenshots
+
+![Home page](screenshots/arxiv_1.png)
+![Paper page](screenshots/arxiv_2.png)
+![Summary page](screenshots/arxiv_3.png)
+
 Quickstart (uv)
 ---------------
 
