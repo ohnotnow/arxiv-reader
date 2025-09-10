@@ -771,7 +771,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                     pub = None
             if not pub:
                 try:
-                    pub = dateparser.parse((md or {}).get("published", ""))
+                    pub = dateparser.parse(md.get("published", ""))
                 except Exception:
                     pub = None
             items_all.append(
