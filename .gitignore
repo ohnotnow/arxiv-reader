@@ -3,7 +3,8 @@
 **/__pycache__
 .env
 .sesskey
-arxiv*
+# Ignore only top-level files/dirs starting with "arxiv"
+/arxiv*
 chroma*
 .chroma*
 state.json
