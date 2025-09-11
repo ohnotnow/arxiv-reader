@@ -147,9 +147,8 @@ def arxiv_fetch_sync(category: str, since: datetime, interest: Optional[str] = N
             continue
         pub_dt = pub_dt.astimezone(timezone.utc)
         if pub_dt < since:
-            # Because results are sorted by submitted date descending, we can break optionally.
-            # But to be safe, continue and let the client handle page size.
-            continue
+            # Results are sorted by submitted date descending: safe to stop scanning.
+            break
 
         title = (r.title or "").strip()
         summary = (r.summary or "").strip()
@@ -250,7 +249,8 @@ def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 
     _ensure_cached_embeddings(cache, items, category)
 
     # Query entire cache, then filter to our current items by id, preserving score order
-    want = min(max(len(items), top_k * 2), 2000)
+    # Query a small multiple of top_k to limit payload sizes
+    want = min(max(top_k * 3, top_k), 300)
     # Filter results to just this category if we have one
     where = {"category": category} if category else None
     q = cache.query(query_texts=[interest], n_results=want, where=where)  # type: ignore[arg-type]
@@ -483,7 +483,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     try:
         if (use_embeddings != "off") and interest:
             k = max(5, min(200, int(top_k or "50")))
-            narrowed_items = narrow_with_chroma(items, interest, k, category)
+            # Offload Chroma ops to a thread to keep loop responsive
+            narrowed_items = await asyncio.to_thread(narrow_with_chroma, items, interest, k, category)
     except Exception as e:
         narrowing_error = str(e)
         narrowed_items = items
@@ -533,7 +534,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         ),
                         A(
                             "Back",
-                            href="/",
+                            href="#",
+                            onclick="history.back(); return false;",
                             cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10",
                         ),
                         Input(
@@ -671,9 +673,15 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     published_str = _human(r.published)
             except Exception:
                 pass
-            text = _pdf_text(pdf_path)
+            # Offload PDF parsing (CPU-bound) to a thread
+            text = await asyncio.to_thread(_pdf_text, pdf_path)
             txt_path.write_text(text)
-            summary = openai_summarize(text, summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding")
+            # Offload OpenAI call (network-bound via sync client) to a thread
+            summary = await asyncio.to_thread(
+                openai_summarize,
+                text,
+                summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+            )
             sum_path.write_text(summary)
             # Post-write sanity check
             pdf_ok = pdf_path.exists()
@@ -722,7 +730,12 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             P(f"Saved under {out_dir}", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(*results_ui, cls="mt-4 space-y-3"),
             Div(
-                A("Back", href="/", cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                A(
+                    "Back",
+                    href="#",
+                    onclick="history.back(); return false;",
+                    cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+                ),
             ),
             cls="container mx-auto max-w-3xl p-4"
         ),
@@ -746,7 +759,8 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
 
     # If no interest or semantic filter off, do a recency-only fallback
     if not interest.strip() or use_embeddings == "off":
-        q = cache.get(where=where)
+        # Offload Chroma get to a thread
+        q = await asyncio.to_thread(cache.get, where=where)
         ids = q.get("ids") or []
         mds = q.get("metadatas") or []
         docs = q.get("documents") or []
@@ -789,8 +803,9 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
         narrowed_items = items_all[:k]
     else:
         # Query top matches by interest, then filter by time in Python
-        want = max(k * 5, k)
-        res = cache.query(query_texts=[interest], n_results=want, where=where)
+        want = min(max(k * 3, k), 300)
+        # Offload Chroma query to a thread
+        res = await asyncio.to_thread(cache.query, query_texts=[interest], n_results=want, where=where)
         ids = (res.get("ids") or [[]])[0]
         mds = (res.get("metadatas") or [[]])[0]
         docs = (res.get("documents") or [[]])[0]
@@ -850,7 +865,12 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                             formmethod="post",
                             cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
                         ),
-                        A("Back", href="/", cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10"),
+                        A(
+                            "Back",
+                            href="#",
+                            onclick="history.back(); return false;",
+                            cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10",
+                        ),
                         cls="grid grid-cols-2 gap-3 items-center mt-4"
                     ),
                     cls=""
