@@ -1351,19 +1351,23 @@ def categories_page(error: str | None = None, saved: str | None = None, q: str |
                 label = it.get("label", "")
                 code = it.get("code", "")
                 rows.append(
-                    Div(
+                    Label(
                         Input(
                             type="checkbox",
                             name="sugg",
                             value=code,
                             **{"data-label": label},
                             cls=(
-                                "mr-2 h-4 w-4 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
+                                "h-4 w-4 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
                                 "bg-white dark:bg-slate-900 accent-emerald-600 focus:ring-2 focus:ring-emerald-500"
                             ),
                         ),
-                        Span(f"{label} ({code})", cls="text-sm"),
-                        cls="flex items-center py-1"
+                        Span(f"{label} ({code})", cls="ml-2 text-sm"),
+                        cls=(
+                            "flex items-center py-1 px-2 rounded-md cursor-pointer select-none transition-colors "
+                            "hover:bg-slate-200 dark:hover:bg-slate-700 hover:ring-1 hover:ring-slate-300 "
+                            "dark:hover:ring-slate-600"
+                        )
                     )
                 )
             suggestions_ui = Div(
