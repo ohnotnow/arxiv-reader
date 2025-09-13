@@ -451,11 +451,18 @@ tailwind = Script(src="https://cdn.tailwindcss.com")
 app, rt = fast_app(hdrs=(tailwind,))
 
 
-def category_select(selected: str | None = None):
-    opts = [Option(name, value=code, selected=(code == selected)) for name, code in CATEGORIES.items()]
+def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None):
+    opts = []
+    for name, code in CATEGORIES.items():
+        label = name
+        if last_checked_labels and code in last_checked_labels:
+            label = f"{name} (Last checked {last_checked_labels[code]})"
+        opts.append(Option(label, value=code, selected=(code == selected)))
+    attrs = select_attrs or {}
     return Select(
         *opts,
         name="category",
+        **attrs,
         cls=(
             "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
@@ -518,6 +525,11 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     recent_interests = _recent_interests(history, cat_code, limit=10)
     recent_styles = _recent_styles(history, limit=10)
 
+    # Build category -> last checked label map for dropdown
+    cat_last_checked: Dict[str, str] = {}
+    for code in CATEGORIES.values():
+        cat_last_checked[code] = _human(_get_session_anchor(code))
+
     return Titled(
         "arXiv Helper",
         Div(
@@ -528,7 +540,19 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                     Form(
                         Div(
                             Label("Category", cls="font-medium"),
-                            category_select(cat_code),
+                            category_select(
+                                cat_code,
+                                last_checked_labels=cat_last_checked,
+                                select_attrs={
+                                    "id": "category_select",
+                                    "onchange": (
+                                        "(function(sel){var m=%s;var v=sel.value;var t=m[v]||'';"
+                                        "var p=document.getElementById('last_checked_text');"
+                                        "if(p){p.textContent='Last checked for '+v+': '+t;}})(this)"
+                                        % json.dumps(cat_last_checked)
+                                    ),
+                                },
+                            ),
                             cls="flex flex-col gap-1"
                         ),
                         Div(
@@ -624,6 +648,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                     Div(
                         P(
                             f"Last checked for {cat_code}: {_human(last_run)}",
+                            id="last_checked_text",
                             cls="text-sm text-slate-600 dark:text-slate-300",
                         ),
                         P(

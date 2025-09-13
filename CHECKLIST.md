@@ -34,3 +34,8 @@
 - [ ] Manual QA: repeated fetches with filter tweaks yield consistent window
 - [ ] Manual QA: close app → reopen → “Last checked” advanced
 - [ ] Optional: add small banner on results clarifying fallback was used
+
+## UI polish
+
+- [x] Show per-category “Last checked” inside category dropdown options
+- [x] Update “Last checked for …” text live when category selection changes
