@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+This project is to help people find and read arXiv papers which are relevant to them.  The main features are:
+
+- Search by category (e.g., `cs.CL`) or interest (e.g., `math.GR`).
+- Add a specific sub-interest and use chromadb to find papers which are semantically similar.
+- Give a summary style prompt which is used to summarise the paper via OpenAI LLM calls.
+- Download paper abstracts
+- Allow the user to select ones that are interesting to them and summarize them with OpenAI.
+- Cache the results of the above to avoid repeated work.
+
 ## Project Structure & Module Organization
 - `main.py`: FastHTML web app (routes, arXiv fetch, Chroma narrowing, OpenAI summaries).
 - `pyproject.toml`: Python 3.13 + deps (uv-managed).

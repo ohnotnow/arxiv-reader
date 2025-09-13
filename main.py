@@ -104,6 +104,118 @@ def _set_prefs(state: Dict[str, Any], prefs: Dict[str, Any]) -> None:
     state["prefs"] = prefs
 
 
+# ---------- History helpers ----------
+def _get_history(state: Dict[str, Any]) -> Dict[str, Any]:
+    hist = state.get("history")
+    return hist if isinstance(hist, dict) else {}
+
+
+def _set_history(state: Dict[str, Any], history: Dict[str, Any]) -> None:
+    state["history"] = history
+
+
+def _normalize_interest(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip()).lower()
+
+
+def _normalize_style(value: str) -> str:
+    # Preserve case in storage; normalize only for dedupe
+    return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def _push_history(history: Dict[str, Any], kind: str, value: str, *, category: Optional[str] = None, cap: int = 25) -> None:
+    if not value or not value.strip():
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if kind == "interests":
+        key = _normalize_interest(value)
+        lst = history.get("interests")
+        if not isinstance(lst, list):
+            lst = []
+        # Find existing
+        idx = None
+        for i, it in enumerate(lst):
+            if _normalize_interest(it.get("value", "")) == key and (category or "") == (it.get("category") or ""):
+                idx = i
+                break
+        if idx is not None:
+            it = lst.pop(idx)
+            it["ts"] = now_iso
+            it["count"] = int(it.get("count", 0) or 0) + 1
+            lst.insert(0, it)
+        else:
+            lst.insert(0, {"value": value, "ts": now_iso, "category": category or "", "count": 1})
+        # Cap length
+        history["interests"] = lst[: max(1, cap)]
+    elif kind == "summary_styles":
+        key = _normalize_style(value)
+        lst = history.get("summary_styles")
+        if not isinstance(lst, list):
+            lst = []
+        idx = None
+        for i, it in enumerate(lst):
+            if _normalize_style(it.get("value", "")) == key:
+                idx = i
+                break
+        if idx is not None:
+            it = lst.pop(idx)
+            it["ts"] = now_iso
+            it["count"] = int(it.get("count", 0) or 0) + 1
+            lst.insert(0, it)
+        else:
+            lst.insert(0, {"value": value, "ts": now_iso, "count": 1})
+        history["summary_styles"] = lst[: max(1, cap)]
+
+
+def _recent_interests(history: Dict[str, Any], category: Optional[str], limit: int = 10) -> List[str]:
+    lst = history.get("interests")
+    if not isinstance(lst, list):
+        return []
+    key_seen: set[str] = set()
+    out: List[str] = []
+    # Category-first
+    wanted_cat = category or ""
+    for phase in (True, False):
+        for it in lst:
+            if not isinstance(it, dict):
+                continue
+            if phase and (it.get("category") or "") != wanted_cat:
+                continue
+            if (not phase) and (it.get("category") or "") == wanted_cat:
+                continue
+            val = it.get("value", "")
+            key = _normalize_interest(val)
+            if val and key not in key_seen:
+                key_seen.add(key)
+                out.append(val)
+                if len(out) >= limit:
+                    return out
+    return out
+
+
+def _recent_styles(history: Dict[str, Any], limit: int = 10) -> List[str]:
+    lst = history.get("summary_styles")
+    if not isinstance(lst, list):
+        return []
+    key_seen: set[str] = set()
+    out: List[str] = []
+    for it in lst:
+        if not isinstance(it, dict):
+            continue
+        val = it.get("value", "")
+        key = _normalize_style(val)
+        if val and key not in key_seen:
+            key_seen.add(key)
+            out.append(val)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _truncate_label(text: str, max_len: int = 80) -> str:
+    t = text or ""
+    return t if len(t) <= max_len else (t[: max_len - 1] + "…")
+
 def _default_since() -> datetime:
     # Default to one week ago, UTC
     return datetime.now(timezone.utc) - timedelta(days=7)
@@ -369,6 +481,11 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 50)))
     interest_value = interest if interest is not None else prefs.get("interest", "")
 
+    # Build recent history suggestions
+    history = _get_history(state)
+    recent_interests = _recent_interests(history, cat_code, limit=10)
+    recent_styles = _recent_styles(history, limit=10)
+
     return Titled(
         "arXiv Helper",
         Div(
@@ -384,22 +501,55 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         ),
                         Div(
                             Label("Specific interest (optional)", cls="font-medium"),
+                            (Div(
+                                Label("Recent interests", cls="text-sm text-slate-600 dark:text-slate-300"),
+                                Select(
+                                    Option("Select a recent interest…", value=""),
+                                    *[Option(_truncate_label(s), value=s) for s in recent_interests],
+                                    onchange="document.querySelector('#interest_input').value=this.value",
+                                    cls=(
+                                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                                    ),
+                                ),
+                                cls="flex flex-col gap-1"
+                            ) if recent_interests else None),
                             Input(
                                 name="interest",
+                                id="interest_input",
                                 placeholder="e.g. retrieval-augmented generation",
                                 value=interest_value,
+                                list="recent-interests",
                                 cls=(
                                     "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
                                     "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                 ),
                             ),
+                            (Datalist(
+                                *[Option(value=val) for val in recent_interests],
+                                id="recent-interests",
+                            ) if recent_interests else None),
                             cls="flex flex-col gap-1"
                         ),
                         Div(
                             Label("Summary style", cls="font-medium"),
+                            (Div(
+                                Label("Recent styles", cls="text-sm text-slate-600 dark:text-slate-300"),
+                                Select(
+                                    Option("Select a recent style…", value=""),
+                                    *[Option(_truncate_label(s), value=s) for s in recent_styles],
+                                    onchange="document.querySelector('#summary_style_input').value=this.value",
+                                    cls=(
+                                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                                    ),
+                                ),
+                                cls="flex flex-col gap-1"
+                            ) if recent_styles else None),
                             Textarea(
                                 default_style,
                                 name="summary_style",
+                                id="summary_style_input",
                                 rows=4,
                                 cls=(
                                     "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
@@ -475,6 +625,13 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
         }
     )
     _set_prefs(state, prefs)
+    # Update history for quick re-use
+    history = _get_history(state)
+    if interest.strip():
+        _push_history(history, "interests", interest, category=category)
+    if summary_style.strip():
+        _push_history(history, "summary_styles", summary_style)
+    _set_history(state, history)
     _save_state(state)
 
     # Optional narrowing via Chroma embeddings

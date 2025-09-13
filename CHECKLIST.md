@@ -1,0 +1,22 @@
+# History Feature Implementation Checklist
+
+- [x] Define history schema in code (no migration needed; treat missing as empty)
+- [x] Add `_get_history` and `_set_history` helpers
+- [x] Add normalization helpers: `_normalize_interest`, `_normalize_style`
+- [x] Add `_push_history(history, kind, value, category=None, cap=25)` utility
+- [x] Update `/fetch` handler to push non-empty `interest` to `history.interests`
+- [x] Update `/fetch` handler to push non-empty `summary_style` to `history.summary_styles`
+- [x] Persist updated `history` in `state.json` alongside `prefs` and `last_run`
+- [x] Load history in `index` route
+- [x] Build recent interests list (category-first, then global) and de-duplicate
+- [x] Add `datalist#recent-interests` and link to the interest input
+- [x] Add a visible "Recent interests" select that copies into the input
+- [ ] Optional: add small interest “chips” (last ~5) that set the input via `data-value`
+- [x] Build recent styles list (most recent first) and de-duplicate
+- [x] Add a “Recent styles” `select` that copies the chosen value into the textarea on change
+- [ ] Optional: add style “chips” as quick-fill buttons
+- [x] Truncate long labels in select/chips (e.g., 80 chars) while using full value
+- [x] Ensure all user text is safely escaped; avoid embedding raw strings into JS literals
+- [x] Cap list sizes at 25 items on insert
+- [ ] Quick manual QA across two categories to verify ordering and reuse
+- [ ] Document behavior in README (short note under usage)
