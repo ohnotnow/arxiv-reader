@@ -456,8 +456,9 @@ def openai_summarize(text: str, style: str) -> str:
 # ---------- Web App (FastHTML) ----------
 
 tailwind = Script(src="https://cdn.tailwindcss.com")
+htmx = Script(src="https://unpkg.com/htmx.org@1.9.12")
 
-app, rt = fast_app(hdrs=(tailwind,))
+app, rt = fast_app(hdrs=(tailwind, htmx))
 
 
 def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None, choices: Optional[Dict[str, str]] = None):
@@ -1190,6 +1191,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 Button(
                     "Regenerate summary",
                     type="submit",
+                    formaction="/regenerate",
+                    formmethod="post",
                     onclick=(
                         "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
                         "setTimeout(()=>{ this.disabled=true; }, 10);"
