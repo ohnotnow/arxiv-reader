@@ -277,6 +277,15 @@ def _pdf_text(path: Path) -> str:
         return f"[Error extracting text: {e}]"
 
 
+# ---------- Stable per-paper cache ----------
+def _paper_cache_dir(arxid: str) -> Path:
+    # Use versioned arXiv id if provided to avoid clobbering when papers update
+    safe = _slugify(arxid)
+    p = DATA_DIR / safe
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def arxiv_fetch_sync(category: str, since: datetime, interest: Optional[str] = None, max_results: int = 200) -> List[Dict[str, Any]]:
     """Fetch recent arXiv entries via the `arxiv` package and optionally filter by simple substring interest."""
     client = arxiv.Client()
@@ -1118,21 +1127,18 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             )
         )
 
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_dir = DATA_DIR / ts
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     results_ui: List[Any] = []
     meta_client = arxiv.Client()
     for arxid in selected_ids:
-        safe_name = _slugify(arxid)
-        pdf_path = out_dir / f"{safe_name}.pdf"
-        txt_path = out_dir / f"{safe_name}.txt"
-        sum_path = out_dir / f"{safe_name}.summary.txt"
+        cache_dir = _paper_cache_dir(arxid)
+        pdf_path = cache_dir / "original.pdf"
+        txt_path = cache_dir / "text.txt"
+        sum_path = cache_dir / "summary.txt"
 
         try:
-            # Use arxiv package to download the PDF
-            await asyncio.to_thread(_download_pdf_via_arxiv, arxid, pdf_path)
+            # Ensure PDF exists in cache
+            if not pdf_path.exists():
+                await asyncio.to_thread(_download_pdf_via_arxiv, arxid, pdf_path)
             # Fetch metadata for nicer display
             title = arxid
             authors = ""
@@ -1145,16 +1151,22 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     published_str = _human(r.published)
             except Exception:
                 pass
-            # Offload PDF parsing (CPU-bound) to a thread
-            text = await asyncio.to_thread(_pdf_text, pdf_path)
-            txt_path.write_text(text)
-            # Offload OpenAI call (network-bound via sync client) to a thread
-            summary = await asyncio.to_thread(
-                openai_summarize,
-                text,
-                summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
-            )
-            sum_path.write_text(summary)
+            # Ensure extracted text exists
+            if not txt_path.exists():
+                text = await asyncio.to_thread(_pdf_text, pdf_path)
+                txt_path.write_text(text)
+            else:
+                text = txt_path.read_text()
+            # Ensure summary exists; only generate if missing
+            if not sum_path.exists():
+                summary = await asyncio.to_thread(
+                    openai_summarize,
+                    text,
+                    summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                )
+                sum_path.write_text(summary)
+            else:
+                summary = sum_path.read_text()
             # Post-write sanity check
             pdf_ok = pdf_path.exists()
             txt_ok = txt_path.exists()
@@ -1170,6 +1182,22 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 flush=True,
             )
             pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
+
+            regen_form = Form(
+                Input(type="hidden", name="arxiv_id", value=arxid),
+                Textarea(summary_style or "", name="summary_style", cls="hidden"),
+                Button(
+                    "Regenerate summary",
+                    type="submit",
+                    formaction="/regenerate",
+                    formmethod="post",
+                    onclick=(
+                        "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                        "setTimeout(()=>{ this.disabled=true; }, 10);"
+                    ),
+                    cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+                ),
+            )
 
             results_ui.append(
                 Div(
@@ -1189,6 +1217,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         ),
                         cls="mt-3"
                     ),
+                    regen_form,
                     cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
                 )
             )
@@ -1199,7 +1228,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
         "Download + Summaries",
         Div(
             H1("Download + Summaries", cls="text-2xl font-bold mb-3"),
-            P(f"Saved under {out_dir}", cls="text-sm text-slate-600 dark:text-slate-300"),
+            P("Using per-paper cache under papers/<arXiv ID>", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(*results_ui, cls="mt-4 space-y-3"),
             Div(
                 Form(
@@ -1607,3 +1636,57 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"--fresh: could not remove state.json: {e}")
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+@rt("/regenerate")
+async def regenerate(arxiv_id: str, summary_style: str = ""):
+    # Overwrite the cached summary for a single paper using the current style
+    cache_dir = _paper_cache_dir(arxiv_id)
+    pdf_path = cache_dir / "original.pdf"
+    txt_path = cache_dir / "text.txt"
+    sum_path = cache_dir / "summary.txt"
+
+    # Ensure prerequisites
+    if not pdf_path.exists():
+        await asyncio.to_thread(_download_pdf_via_arxiv, arxiv_id, pdf_path)
+    if not txt_path.exists():
+        text = await asyncio.to_thread(_pdf_text, pdf_path)
+        txt_path.write_text(text)
+    else:
+        text = txt_path.read_text()
+
+    # Regenerate unconditionally
+    summary = await asyncio.to_thread(
+        openai_summarize,
+        text,
+        summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+    )
+    sum_path.write_text(summary)
+
+    # Return a small confirmation page with the updated summary and a back link
+    pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
+    return Titled(
+        "Regenerated Summary",
+        Div(
+            H1("Regenerated Summary", cls="text-2xl font-bold mb-3"),
+            Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+            Div(
+                A(
+                    "Open PDF",
+                    href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxiv_id}.pdf"),
+                    target="_blank",
+                    cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                ),
+                cls="mt-3"
+            ),
+            Div(
+                A(
+                    "Back",
+                    href="#",
+                    onclick="history.back(); return false;",
+                    cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600",
+                ),
+            ),
+            cls="container mx-auto max-w-3xl p-4"
+        ),
+    )
