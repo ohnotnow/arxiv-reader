@@ -1183,20 +1183,20 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             )
             pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
 
+            sum_id = f"sum-{_slugify(arxid)}"
             regen_form = Form(
                 Input(type="hidden", name="arxiv_id", value=arxid),
                 Textarea(summary_style or "", name="summary_style", cls="hidden"),
                 Button(
                     "Regenerate summary",
                     type="submit",
-                    formaction="/regenerate",
-                    formmethod="post",
                     onclick=(
                         "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
                         "setTimeout(()=>{ this.disabled=true; }, 10);"
                     ),
                     cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
                 ),
+                **{"hx-post": "/regenerate", "hx-target": f"#{sum_id}", "hx-swap": "outerHTML"},
             )
 
             results_ui.append(
@@ -1207,17 +1207,20 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         P(f"Published: {published_str}", cls="text-xs text-slate-500 dark:text-slate-400") if published_str else None,
                         cls="mb-2"
                     ),
-                    Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
                     Div(
-                        A(
-                            "Open PDF",
-                            href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxid}.pdf"),
-                            target="_blank",
-                            cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                        Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+                        Div(
+                            A(
+                                "Open PDF",
+                                href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxid}.pdf"),
+                                target="_blank",
+                                cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                            ),
+                            cls="mt-3"
                         ),
-                        cls="mt-3"
+                        regen_form,
+                        id=sum_id,
                     ),
-                    regen_form,
                     cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
                 )
             )
@@ -1639,7 +1642,7 @@ if __name__ == "__main__":
 
 
 @rt("/regenerate")
-async def regenerate(arxiv_id: str, summary_style: str = ""):
+async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders | None = None):
     # Overwrite the cached summary for a single paper using the current style
     cache_dir = _paper_cache_dir(arxiv_id)
     pdf_path = cache_dir / "original.pdf"
@@ -1663,30 +1666,40 @@ async def regenerate(arxiv_id: str, summary_style: str = ""):
     )
     sum_path.write_text(summary)
 
-    # Return a small confirmation page with the updated summary and a back link
+    # If htmx request, return the updated summary block for in-place swap
+    sum_id = f"sum-{_slugify(arxiv_id)}"
     pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
+    block = Div(
+        Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+        Div(
+            A(
+                "Open PDF",
+                href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxiv_id}.pdf"),
+                target="_blank",
+                cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+            ),
+            cls="mt-3"
+        ),
+        Form(
+            Input(type="hidden", name="arxiv_id", value=arxiv_id),
+            Textarea(summary_style or "", name="summary_style", cls="hidden"),
+            Button(
+                "Regenerate summary",
+                type="submit",
+                onclick=(
+                    "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                    "setTimeout(()=>{ this.disabled=true; }, 10);"
+                ),
+                cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+            ),
+            **{"hx-post": "/regenerate", "hx-target": f"#{sum_id}", "hx-swap": "outerHTML"},
+        ),
+        id=sum_id,
+    )
+    if htmx:
+        return block
+    # Fallback: small page
     return Titled(
         "Regenerated Summary",
-        Div(
-            H1("Regenerated Summary", cls="text-2xl font-bold mb-3"),
-            Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
-            Div(
-                A(
-                    "Open PDF",
-                    href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxiv_id}.pdf"),
-                    target="_blank",
-                    cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
-                ),
-                cls="mt-3"
-            ),
-            Div(
-                A(
-                    "Back",
-                    href="#",
-                    onclick="history.back(); return false;",
-                    cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600",
-                ),
-            ),
-            cls="container mx-auto max-w-3xl p-4"
-        ),
+        Div(block, cls="container mx-auto max-w-3xl p-4"),
     )
