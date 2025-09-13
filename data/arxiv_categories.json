@@ -1,0 +1,1024 @@
+[
+  {
+    "code": "bio.BM",
+    "label": "Biomolecules",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.CB",
+    "label": "Cell Behavior",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.GN",
+    "label": "Genomics",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.MN",
+    "label": "Molecular Networks",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.NC",
+    "label": "Neurons and Cognition",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.OT",
+    "label": "Other Quantitative Biology",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.PE",
+    "label": "Populations and Evolution",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.QM",
+    "label": "Quantitative Methods",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.SC",
+    "label": "Subcellular Processes",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "bio.TO",
+    "label": "Tissues and Organs",
+    "group": "bio",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.AI",
+    "label": "Artificial Intelligence",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.AR",
+    "label": "Hardware Architecture",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CC",
+    "label": "Computational Complexity",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CE",
+    "label": "Computational Engineering, Finance, and Science",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CG",
+    "label": "Computational Geometry",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CL",
+    "label": "Computation and Language",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CR",
+    "label": "Cryptography and Security",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CV",
+    "label": "Computer Vision and Pattern Recognition",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.CY",
+    "label": "Computers and Society",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.DB",
+    "label": "Databases",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.DC",
+    "label": "Distributed, Parallel, and Cluster Computing",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.DL",
+    "label": "Digital Libraries",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.DM",
+    "label": "Discrete Mathematics",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.DS",
+    "label": "Data Structures and Algorithms",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.ET",
+    "label": "Emerging Technologies",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.FL",
+    "label": "Formal Languages and Automata Theory",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.GL",
+    "label": "General Literature",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.GR",
+    "label": "Graphics",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.GT",
+    "label": "Computer Science and Game Theory",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.HC",
+    "label": "Human-Computer Interaction",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.IR",
+    "label": "Information Retrieval",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.IT",
+    "label": "Information Theory",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.LG",
+    "label": "Machine Learning",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.LO",
+    "label": "Logic in Computer Science",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.MA",
+    "label": "Multiagent Systems",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.MM",
+    "label": "Multimedia",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.MS",
+    "label": "Mathematical Software",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.NA",
+    "label": "Numerical Analysis",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.NE",
+    "label": "Neural and Evolutionary Computing",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.NI",
+    "label": "Networking and Internet Architecture",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.OH",
+    "label": "Other Computer Science",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.OS",
+    "label": "Operating Systems",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.PF",
+    "label": "Performance",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.PL",
+    "label": "Programming Languages",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.RO",
+    "label": "Robotics",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.SC",
+    "label": "Symbolic Computation",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.SD",
+    "label": "Sound",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.SE",
+    "label": "Software Engineering",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.SI",
+    "label": "Social and Information Networks",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "cs.SY",
+    "label": "Systems and Control",
+    "group": "cs",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "econ.EM",
+    "label": "Econometrics",
+    "group": "econ",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "econ.GN",
+    "label": "General Economics",
+    "group": "econ",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "econ.TH",
+    "label": "Theoretical Economics",
+    "group": "econ",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "eess.AS",
+    "label": "Audio and Speech Processing",
+    "group": "eess",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "eess.IV",
+    "label": "Image and Video Processing",
+    "group": "eess",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "eess.SP",
+    "label": "Signal Processing",
+    "group": "eess",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "eess.SY",
+    "label": "Systems and Control",
+    "group": "eess",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.CP",
+    "label": "Computational Finance",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.EC",
+    "label": "Economics",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.GN",
+    "label": "General Finance",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.MF",
+    "label": "Mathematical Finance",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.PM",
+    "label": "Portfolio Management",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.PR",
+    "label": "Pricing of Securities",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.RM",
+    "label": "Risk Management",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.ST",
+    "label": "Statistical Finance",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "fin.TR",
+    "label": "Trading and Market Microstructure",
+    "group": "fin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.dis-nn",
+    "label": "Disordered Systems and Neural Networks",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.mes-hall",
+    "label": "Mesoscale and Nanoscale Physics",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.mtrl-sci",
+    "label": "Materials Science",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.other",
+    "label": "Other Condensed Matter",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.quant-gas",
+    "label": "Quantum Gases",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.soft",
+    "label": "Soft Condensed Matter",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.stat-mech",
+    "label": "Statistical Mechanics",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.str-el",
+    "label": "Strongly Correlated Electrons",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "mat.supr-con",
+    "label": "Superconductivity",
+    "group": "mat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.AC",
+    "label": "Commutative Algebra",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.AG",
+    "label": "Algebraic Geometry",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.AP",
+    "label": "Analysis of PDEs",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.AT",
+    "label": "Algebraic Topology",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.CA",
+    "label": "Classical Analysis and ODEs",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.CO",
+    "label": "Combinatorics",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.CT",
+    "label": "Category Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.CV",
+    "label": "Complex Variables",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.DG",
+    "label": "Differential Geometry",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.DS",
+    "label": "Dynamical Systems",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.FA",
+    "label": "Functional Analysis",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.GM",
+    "label": "General Mathematics",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.GN",
+    "label": "General Topology",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.GR",
+    "label": "Group Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.GT",
+    "label": "Geometric Topology",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.HO",
+    "label": "History and Overview",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.IT",
+    "label": "Information Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.KT",
+    "label": "K-Theory and Homology",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.LO",
+    "label": "Logic",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.MG",
+    "label": "Metric Geometry",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.MP",
+    "label": "Mathematical Physics",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.NA",
+    "label": "Numerical Analysis",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.NT",
+    "label": "Number Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.OA",
+    "label": "Operator Algebras",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.OC",
+    "label": "Optimization and Control",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.PR",
+    "label": "Probability",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.QA",
+    "label": "Quantum Algebra",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.RA",
+    "label": "Rings and Algebras",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.RT",
+    "label": "Representation Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.SG",
+    "label": "Symplectic Geometry",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.SP",
+    "label": "Spectral Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "math.ST",
+    "label": "Statistics Theory",
+    "group": "math",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "nlin.AO",
+    "label": "Adaptation and Self-Organizing Systems",
+    "group": "nlin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "nlin.CD",
+    "label": "Chaotic Dynamics",
+    "group": "nlin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "nlin.CG",
+    "label": "Cellular Automata and Lattice Gases",
+    "group": "nlin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "nlin.PS",
+    "label": "Pattern Formation and Solitons",
+    "group": "nlin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "nlin.SI",
+    "label": "Exactly Solvable and Integrable Systems",
+    "group": "nlin",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.CO",
+    "label": "Cosmology and Nongalactic Astrophysics",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.EP",
+    "label": "Earth and Planetary Astrophysics",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.GA",
+    "label": "Astrophysics of Galaxies",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.HE",
+    "label": "High Energy Astrophysical Phenomena",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.IM",
+    "label": "Instrumentation and Methods for Astrophysics",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "ph.SR",
+    "label": "Solar and Stellar Astrophysics",
+    "group": "ph",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.acc-ph",
+    "label": "Accelerator Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.ao-ph",
+    "label": "Atmospheric and Oceanic Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.app-ph",
+    "label": "Applied Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.atm-clus",
+    "label": "Atomic and Molecular Clusters",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.atom-ph",
+    "label": "Atomic Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.bio-ph",
+    "label": "Biological Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.chem-ph",
+    "label": "Chemical Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.class-ph",
+    "label": "Classical Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.comp-ph",
+    "label": "Computational Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.data-an",
+    "label": "Data Analysis, Statistics and Probability",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.ed-ph",
+    "label": "Physics Education",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.flu-dyn",
+    "label": "Fluid Dynamics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.gen-ph",
+    "label": "General Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.geo-ph",
+    "label": "Geophysics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.hist-ph",
+    "label": "History and Philosophy of Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.ins-det",
+    "label": "Instrumentation and Detectors",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.med-ph",
+    "label": "Medical Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.optics",
+    "label": "Optics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.plasm-ph",
+    "label": "Plasma Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.pop-ph",
+    "label": "Popular Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.soc-ph",
+    "label": "Physics and Society",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "physics.space-ph",
+    "label": "Space Physics",
+    "group": "physics",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.AP",
+    "label": "Applications",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.CO",
+    "label": "Computation",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.ME",
+    "label": "Methodology",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.ML",
+    "label": "Machine Learning",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.OT",
+    "label": "Other Statistics",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  },
+  {
+    "code": "stat.TH",
+    "label": "Statistics Theory",
+    "group": "stat",
+    "updated_at": "2025-09-13T14:37:49.391066+00:00",
+    "source": "arxiv_category_taxonomy"
+  }
+]

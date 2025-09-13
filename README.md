@@ -58,3 +58,14 @@ Notes
 - Tailwind is loaded via CDN; no build step needed.
 - If you prefer not to call OpenAI, leave `OPENAI_API_KEY` unset; the app will skip summaries.
 - This project prefers `uv` for dependency management and running.
+
+Category cache (optional)
+-------------------------
+
+- A local cache of arXiv subject categories is stored at `data/arxiv_categories.json`.
+- The repo includes a small seed set; you can refresh from arXiv’s taxonomy page with:
+  - `python scripts/fetch_categories.py` (writes to `data/arxiv_categories.json`)
+  - `python scripts/fetch_categories.py --stdout` to print JSON without writing
+- Notes:
+  - This scrapes the public taxonomy page (there’s no official endpoint listing all categories).
+  - If the page structure changes, the script may need small tweaks.

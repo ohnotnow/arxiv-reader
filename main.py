@@ -451,9 +451,10 @@ tailwind = Script(src="https://cdn.tailwindcss.com")
 app, rt = fast_app(hdrs=(tailwind,))
 
 
-def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None):
+def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None, choices: Optional[Dict[str, str]] = None):
     opts = []
-    for name, code in CATEGORIES.items():
+    mapping = choices or CATEGORIES
+    for name, code in mapping.items():
         label = name
         if last_checked_labels and code in last_checked_labels:
             label = f"{name} (Last checked {last_checked_labels[code]})"
@@ -468,6 +469,113 @@ def category_select(selected: str | None = None, last_checked_labels: Optional[D
             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
         ),
     )
+
+
+# ---------- User category list helpers ----------
+def _get_user_categories(state: Dict[str, Any]) -> List[Dict[str, str]]:
+    cats = state.get("categories")
+    out: List[Dict[str, str]] = []
+    if isinstance(cats, list):
+        for it in cats:
+            if isinstance(it, dict) and it.get("code") and it.get("label"):
+                out.append({"label": str(it["label"]), "code": str(it["code"])})
+    if out:
+        return out
+    # Fallback to defaults from CATEGORIES
+    return [{"label": name.split(" (", 1)[0], "code": code} for name, code in CATEGORIES.items()]
+
+
+def _set_user_categories(state: Dict[str, Any], items: List[Dict[str, str]]) -> None:
+    # De-duplicate by code, keep order
+    seen: set[str] = set()
+    cleaned: List[Dict[str, str]] = []
+    for it in items:
+        code = (it.get("code") or "").strip()
+        label = (it.get("label") or "").strip()
+        if not code or not label:
+            continue
+        if code in seen:
+            continue
+        seen.add(code)
+        cleaned.append({"label": label, "code": code})
+    state["categories"] = cleaned
+
+
+def _build_category_display_map(items: List[Dict[str, str]]) -> Dict[str, str]:
+    # Ordered mapping: "Label (code)" -> code
+    out: Dict[str, str] = {}
+    for it in items:
+        label = it.get("label") or ""
+        code = it.get("code") or ""
+        if not code:
+            continue
+        name = f"{label} ({code})" if label else code
+        out[name] = code
+    return out
+
+
+def _load_category_cache() -> List[Dict[str, str]]:
+    path = Path("data/arxiv_categories.json")
+    try:
+        if path.exists():
+            data = json.loads(path.read_text())
+            out: List[Dict[str, str]] = []
+            if isinstance(data, list):
+                for it in data:
+                    if isinstance(it, dict) and it.get("code") and it.get("label"):
+                        out.append({
+                            "code": str(it.get("code")),
+                            "label": str(it.get("label")),
+                            "group": str(it.get("group", "")),
+                        })
+            return out
+    except Exception:
+        return []
+    return []
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+
+def _tokenize(s: str) -> List[str]:
+    return [t for t in re.split(r"[^a-z0-9]+", _norm(s)) if t]
+
+
+def _fuzzy_search_categories(query: str, items: List[Dict[str, str]], limit: int = 10) -> List[Dict[str, str]]:
+    q = _norm(query)
+    if not q:
+        return []
+    qtoks = set(_tokenize(q))
+    results: List[tuple[float, Dict[str, str]]] = []
+    for it in items:
+        code = it.get("code", "")
+        label = it.get("label", "")
+        group = it.get("group", "")
+        code_l = _norm(code)
+        label_l = _norm(label)
+        group_l = _norm(group)
+        # base score
+        score = 0.0
+        # direct matches on code
+        if code_l.startswith(q):
+            score += 60
+        elif q in code_l:
+            score += 40
+        # label/group token overlap
+        ltoks = set(_tokenize(label_l)) | set(_tokenize(group_l))
+        inter = len(qtoks & ltoks)
+        if inter:
+            # weight by overlap and token proportion
+            score += 10 * inter
+            score += 30 * (inter / max(1, len(qtoks)))
+        # substring in label
+        if q in label_l:
+            score += 20
+        if score > 0:
+            results.append((score, it))
+    results.sort(key=lambda x: (-x[0], x[1].get("code", "")))
+    return [it for _, it in results[:limit]]
 
 
 def paper_row(item: Dict[str, Any]) -> Any:
@@ -505,7 +613,12 @@ def paper_row(item: Dict[str, Any]) -> Any:
 def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None):
     state = _load_state()
     prefs = _get_prefs(state)
-    cat_code = category or prefs.get("category") or next(iter(CATEGORIES.values()))
+    # User categories list (ordered); build display mapping
+    user_cats = _get_user_categories(state)
+    display_map = _build_category_display_map(user_cats)
+    # Pick default category code from user list
+    first_code = next(iter(display_map.values())) if display_map else next(iter(CATEGORIES.values()))
+    cat_code = category or prefs.get("category") or first_code
     # Use session-stable anchor for this category
     last_run = _get_session_anchor(cat_code)
 
@@ -527,7 +640,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 
     # Build category -> last checked label map for dropdown
     cat_last_checked: Dict[str, str] = {}
-    for code in CATEGORIES.values():
+    for code in (display_map.values()):
         cat_last_checked[code] = _human(_get_session_anchor(code))
 
     return Titled(
@@ -545,13 +658,16 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                 last_checked_labels=cat_last_checked,
                                 select_attrs={
                                     "id": "category_select",
-                                    "onchange": (
-                                        "(function(sel){var m=%s;var v=sel.value;var t=m[v]||'';"
-                                        "var p=document.getElementById('last_checked_text');"
-                                        "if(p){p.textContent='Last checked for '+v+': '+t;}})(this)"
-                                        % json.dumps(cat_last_checked)
-                                    ),
                                 },
+                                choices=display_map,
+                            ),
+                            Div(
+                                A(
+                                    "Manage categories",
+                                    href="/categories",
+                                    cls="text-sm text-indigo-600 dark:text-indigo-300 hover:underline",
+                                ),
+                                cls="mt-1",
                             ),
                             cls="flex flex-col gap-1"
                         ),
@@ -1209,6 +1325,191 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
 
 
 # Removed legacy generic /files route in favor of UUID-based routes above
+
+
+# ---------- Manage Categories UI ----------
+
+
+@rt("/categories")
+def categories_page(error: str | None = None, saved: str | None = None, q: str | None = None):
+    state = _load_state()
+    cats = _get_user_categories(state)
+    lines = "\n".join(f"{it['label']}|{it['code']}" for it in cats)
+    flash = None
+    if error:
+        flash = Div(error, cls="mb-3 p-2 rounded bg-red-50 text-red-700 border border-red-200")
+    elif saved:
+        flash = Div("Saved categories.", cls="mb-3 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200")
+    # Suggestions via local cache and fuzzy search
+    suggestions_ui = None
+    cache = _load_category_cache()
+    if q and cache:
+        sugg = _fuzzy_search_categories(q, cache, limit=10)
+        if sugg:
+            rows = []
+            for it in sugg:
+                label = it.get("label", "")
+                code = it.get("code", "")
+                rows.append(
+                    Div(
+                        Input(
+                            type="checkbox",
+                            name="sugg",
+                            value=code,
+                            **{"data-label": label},
+                            cls=(
+                                "mr-2 h-4 w-4 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
+                                "bg-white dark:bg-slate-900 accent-emerald-600 focus:ring-2 focus:ring-emerald-500"
+                            ),
+                        ),
+                        Span(f"{label} ({code})", cls="text-sm"),
+                        cls="flex items-center py-1"
+                    )
+                )
+            suggestions_ui = Div(
+                H3("Suggestions", cls="font-medium text-sm mb-2"),
+                Div(*rows, id="sugg_box", cls="divide-y divide-slate-200 dark:divide-slate-700 border rounded p-2 bg-slate-50 dark:bg-slate-800/40"),
+                P("Selected suggestions will be added when you Save.", cls="text-xs text-slate-500 mt-2"),
+                cls="mt-2"
+            )
+        else:
+            suggestions_ui = P("No matches.", cls="text-xs text-slate-500 mt-2")
+    elif q and not cache:
+        suggestions_ui = P("Category cache not available. Run the fetch script to enable search.", cls="text-xs text-slate-500 mt-2")
+    return Titled(
+        "Manage Categories",
+        Div(
+            Div(
+                H1("Manage Categories", cls="text-2xl font-bold mb-3"),
+                P("Edit your category list below. One per line as 'Label|code' (e.g., 'Computation and Language|cs.CL').", cls="text-sm text-slate-600 dark:text-slate-300 mb-3"),
+                flash,
+                Form(
+                    Div(
+                        Label("Search catalog (local cache)", cls="text-sm text-slate-600 dark:text-slate-300"),
+                        Div(
+                            Input(
+                                name="q",
+                                value=q or "",
+                                placeholder="e.g., language, robotics, cs.CL",
+                                cls=(
+                                    "flex-grow h-10 px-3 border rounded border-slate-300 bg-white text-slate-900 "
+                                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 "
+                                    "placeholder:text-slate-400 dark:placeholder:text-slate-400"
+                                ),
+                            ),
+                            Button(
+                                "Search",
+                                type="submit",
+                                formaction="/categories",
+                                formmethod="get",
+                                cls=(
+                                    "flex-1 h-10 px-3 ml-2 bg-slate-200 hover:bg-slate-300 "
+                                    "dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 "
+                                    "rounded text-sm"
+                                ),
+                            ),
+                            A(
+                                "Clear",
+                                href="/categories",
+                                cls="h-10 px-3 ml-2 rounded text-sm text-slate-600 dark:text-slate-300",
+                            ),
+                            cls="flex items-center"
+                        ),
+                        None,
+                        cls="mb-4"
+                    ),
+                ),
+                Form(
+                    (suggestions_ui if suggestions_ui else None),
+                    Textarea(
+                        lines,
+                        name="bulk",
+                        id="cats_bulk",
+                        rows=14,
+                        cls=(
+                            "w-full border rounded p-2 border-slate-300 bg-white text-slate-900 "
+                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                        ),
+                    ),
+                    Div(
+                        Button(
+                            "Save",
+                            type="submit",
+                            formaction="/categories/save",
+                            formmethod="post",
+                            cls="h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
+                        ),
+                        Button(
+                            "Reset to defaults",
+                            type="submit",
+                            formaction="/categories/reset",
+                            formmethod="post",
+                            cls="h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded font-medium text-sm",
+                        ),
+                        A(
+                            "Back",
+                            href="/",
+                            cls="h-10 px-4 bg-slate-100 dark:bg-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded inline-flex items-center justify-center no-underline text-sm",
+                        ),
+                        cls="mt-3 flex gap-3"
+                    ),
+                ),
+                cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
+            ),
+            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100",
+        ),
+    )
+
+
+def _parse_categories_bulk(bulk: str) -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    for raw in (bulk or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # allow either "Label|code" or "code" alone
+        if "|" in line:
+            label, code = line.split("|", 1)
+            label = label.strip()
+            code = code.strip()
+        else:
+            code = line
+            label = ""
+        if not code:
+            continue
+        out.append({"label": label, "code": code})
+    return out
+
+
+@rt("/categories/save")
+def categories_save(bulk: str = "", sugg: list[str] = []):
+    items = _parse_categories_bulk(bulk)
+    # Merge any selected suggestions by code, looking up labels from cache
+    if sugg:
+        selected = [str(x) for x in sugg]
+        cache = _load_category_cache()
+        code_to_label = {it.get("code", ""): it.get("label", "") for it in cache}
+        for code in selected:
+            code = (code or "").strip()
+            if not code:
+                continue
+            label = code_to_label.get(code, "") or code
+            items.append({"label": label, "code": code})
+    if not items:
+        return categories_page(error="Please provide at least one category entry.")
+    state = _load_state()
+    _set_user_categories(state, items)
+    _save_state(state)
+    return categories_page(saved="1")
+
+
+@rt("/categories/reset")
+def categories_reset():
+    state = _load_state()
+    defaults = [{"label": name.split(" (", 1)[0], "code": code} for name, code in CATEGORIES.items()]
+    _set_user_categories(state, defaults)
+    _save_state(state)
+    return categories_page(saved="1")
 
 
 @app.on_event("startup")

@@ -40,3 +40,21 @@
 - [x] Show per-category “Last checked” inside category dropdown options
 - [x] Update “Last checked for …” text live when category selection changes
 - [x] Rename button to “Fetch new papers” and remove bottom “Last checked / updates when you close the app” copy
+
+## Category cache
+
+- [x] Add script `scripts/fetch_categories.py` to scrape taxonomy and write `data/arxiv_categories.json`
+- [x] Add a seed `data/arxiv_categories.json` with common categories
+- [x] Document usage in README
+- [ ] Optional: validate codes via a tiny query (future)
+- [ ] Optional: add fuzzy search helper using local cache (future)
+  - [x] Implemented basic fuzzy search (token overlap + substring) in Manage Categories
+
+## Manage categories UI
+
+- [x] Load user-curated categories from `state["categories"]` with fallback to defaults
+- [x] Render dropdown from curated list (ordered), with per-category "Last checked"
+- [x] Add "Manage categories" page with bulk edit textarea (Label|code per line)
+- [x] Save/update curated list in state; reset to defaults
+- [ ] Optional: add drag-reorder UI and field-by-field editing
+- [ ] Optional: confirm prompt on removing a category
