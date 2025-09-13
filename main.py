@@ -591,6 +591,12 @@ def paper_row(item: Dict[str, Any]) -> Any:
                 type="checkbox",
                 name="selected",
                 value=pid,
+                onchange=(
+                    "(function(cb){var btn=document.getElementById('btn_download');"
+                    "if(!btn) return; var any=document.querySelectorAll('input[name=selected]:checked').length>0;"
+                    "btn.disabled=!any; btn.classList.toggle('opacity-50', !any); btn.classList.toggle('cursor-not-allowed', !any);"
+                    "})(this)"
+                ),
                 cls=(
                     "mr-3 h-5 w-5 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
                     "bg-white dark:bg-slate-900 accent-emerald-600 focus:ring-2 focus:ring-emerald-500"
@@ -652,7 +658,19 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                 Div(
                     Form(
                         Div(
-                            Label("Category", cls="font-medium"),
+                            Div(
+                                Label("Category", cls="font-medium"),
+                                A(
+                                    "Manage categories",
+                                    href="/categories",
+                                    cls=(
+                                        "inline-flex items-center justify-center h-10 px-3 "
+                                        "bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 "
+                                        "dark:hover:bg-slate-600 dark:text-slate-100 rounded text-sm"
+                                    ),
+                                ),
+                                cls="flex items-center justify-between"
+                            ),
                             category_select(
                                 cat_code,
                                 last_checked_labels=cat_last_checked,
@@ -660,14 +678,6 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     "id": "category_select",
                                 },
                                 choices=display_map,
-                            ),
-                            Div(
-                                A(
-                                    "Manage categories",
-                                    href="/categories",
-                                    cls="text-sm text-indigo-600 dark:text-indigo-300 hover:underline",
-                                ),
-                                cls="mt-1",
                             ),
                             cls="flex flex-col gap-1"
                         ),
@@ -756,7 +766,19 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             cls="flex flex-col gap-1"
                         ),
                         Div(
-                            Button("Fetch new papers", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
+                            Button(
+                                "Fetch new papers",
+                                type="submit",
+                                formaction="/fetch",
+                                formmethod="post",
+                                id="btn_fetch",
+                                onclick=(
+                                    # Change label + style immediately; disable after a tick so submit proceeds
+                                    "this.textContent='Fetching…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                                    "setTimeout(()=>{ this.disabled=true; }, 10);"
+                                ),
+                                cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700",
+                            ),
                             cls="mt-2"
                         ),
                         cls="space-y-4"
@@ -966,7 +988,14 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                             type="submit",
                             formaction="/download",
                             formmethod="post",
-                            cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
+                            id="btn_download",
+                            disabled=True,
+                            onclick=(
+                                "if(this.disabled){event.preventDefault(); return false;}"
+                                "this.textContent='Downloading…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                                "setTimeout(()=>{ this.disabled=true; }, 10);"
+                            ),
+                            cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm opacity-50 cursor-not-allowed",
                         ),
                         A(
                             "Back",
@@ -1077,7 +1106,12 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             "No Selection",
             Div(
                 P("No papers selected."),
-                A("Back", href="/", cls="inline-block mt-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded"),
+                A(
+                    "Back",
+                    href="#",
+                    onclick="history.back(); return false;",
+                    cls="inline-block mt-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+                ),
                 cls="p-4"
             )
         )
@@ -1299,7 +1333,14 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                             type="submit",
                             formaction="/download",
                             formmethod="post",
-                            cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm",
+                            id="btn_download",
+                            disabled=True,
+                            onclick=(
+                                "if(this.disabled){event.preventDefault(); return false;}"
+                                "this.textContent='Downloading…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                                "setTimeout(()=>{ this.disabled=true; }, 10);"
+                            ),
+                            cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm opacity-50 cursor-not-allowed",
                         ),
                         A(
                             "Back",
