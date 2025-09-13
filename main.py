@@ -54,6 +54,38 @@ def _save_state(state: Dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
+# ---------- Session-scoped tracking (advances on shutdown) ----------
+SESSION_ANCHOR: Dict[str, datetime] = {}
+LATEST_SEEN: Dict[str, datetime] = {}
+TOUCHED_CATEGORIES: set[str] = set()
+
+
+def _get_session_anchor(category: str) -> datetime:
+    if category in SESSION_ANCHOR:
+        return SESSION_ANCHOR[category]
+    state = _load_state()
+    iso = _get_last_run(state, category)
+    dt = dateparser.parse(iso) if iso else _default_since()
+    SESSION_ANCHOR[category] = dt
+    return dt
+
+
+def _update_latest_seen(category: str, items: List[Dict[str, Any]]) -> None:
+    if not items:
+        return
+    # Compute max published time from items
+    latest: Optional[datetime] = None
+    for it in items:
+        pub = it.get("published")
+        if isinstance(pub, datetime):
+            latest = pub if (latest is None or pub > latest) else latest
+    if latest is not None:
+        prev = LATEST_SEEN.get(category)
+        if (prev is None) or (latest > prev):
+            LATEST_SEEN[category] = latest
+    TOUCHED_CATEGORIES.add(category)
+
+
 # ---------- File index (UUID -> safe file path) ----------
 def _load_file_index() -> Dict[str, Any]:
     if FILE_INDEX.exists():
@@ -467,8 +499,8 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     state = _load_state()
     prefs = _get_prefs(state)
     cat_code = category or prefs.get("category") or next(iter(CATEGORIES.values()))
-    last_run_iso = _get_last_run(state, cat_code)
-    last_run = dateparser.parse(last_run_iso) if last_run_iso else _default_since()
+    # Use session-stable anchor for this category
+    last_run = _get_session_anchor(cat_code)
 
     default_style = (
         summary_style
@@ -590,8 +622,15 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         cls="space-y-4"
                     ),
                     Div(
-                        P(f"Last run for {cat_code}: {_human(last_run)}", cls="text-sm text-slate-600 dark:text-slate-300"),
-                        cls="mt-4"
+                        P(
+                            f"Last checked for {cat_code}: {_human(last_run)}",
+                            cls="text-sm text-slate-600 dark:text-slate-300",
+                        ),
+                        P(
+                            "Shows new papers since this time. Updates when you close the app.",
+                            cls="text-xs text-slate-500 dark:text-slate-400",
+                        ),
+                        cls="mt-4 space-y-1",
                     ),
                     cls="bg-white dark:bg-slate-800 dark:border-slate-700 p-4 rounded-lg border"
                 ),
@@ -605,15 +644,13 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 @rt("/fetch")
 async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50"):
     state = _load_state()
-    since_iso = _get_last_run(state, category)
-    since = dateparser.parse(since_iso) if since_iso else _default_since()
+    # Use session anchor (stable during app lifetime)
+    since = _get_session_anchor(category)
 
     # If using embeddings, fetch without simple substring filter to avoid over-pruning
     items = await arxiv_fetch(category, since, None if (use_embeddings != "off" and interest) else (interest or None))
 
-    # Update state last-run now
-    _set_last_run(state, category, datetime.now(timezone.utc).isoformat())
-    # Save user prefs for next time
+    # Save user prefs for next time (but do NOT advance anchor here)
     prefs = _get_prefs(state)
     prefs.update(
         {
@@ -659,9 +696,120 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
         flush=True,
     )
 
+    # Track latest seen and session touch for shutdown anchor advance
+    _update_latest_seen(category, narrowed_items)
+
     results = [paper_row(it) for it in narrowed_items]
+    fallback_ui = None
     if not results:
-        results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
+        # Automatic fallback: show recent cached matches (last 7 days) with current filters
+        try:
+            k = max(5, min(200, int(top_k or "50")))
+        except Exception:
+            k = 50
+        fallback_days = 7
+        cutoff = datetime.now(timezone.utc) - timedelta(days=fallback_days)
+
+        try:
+            client = _chroma_client()
+            cache = client.get_or_create_collection(name="arxiv_cache")
+            where: Optional[Dict[str, Any]] = ({"category": category} if category else None)
+            if not interest.strip() or use_embeddings == "off":
+                q = await asyncio.to_thread(cache.get, where=where)
+                ids = q.get("ids") or []
+                mds = q.get("metadatas") or []
+                docs = q.get("documents") or []
+                if ids and isinstance(ids[0], list):
+                    flat_ids = []
+                    for sub in ids:
+                        flat_ids.extend(sub)
+                    ids = flat_ids
+                    mds = [x for sub in (mds or []) for x in (sub or [])]
+                    docs = [x for sub in (docs or []) for x in (sub or [])]
+                items_all: List[Dict[str, Any]] = []
+                for i, md, doc in zip(ids, mds, docs):
+                    md = md or {}
+                    pub = None
+                    ts = md.get("published_ts")
+                    if isinstance(ts, (int, float)):
+                        try:
+                            pub = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        except Exception:
+                            pub = None
+                    if not pub:
+                        try:
+                            pub = dateparser.parse(md.get("published", ""))
+                        except Exception:
+                            pub = None
+                    if pub and pub < cutoff:
+                        continue
+                    items_all.append(
+                        {
+                            "id": f"https://arxiv.org/abs/{i}",
+                            "arxiv_id": i,
+                            "title": md.get("title", ""),
+                            "authors": md.get("authors", ""),
+                            "published": pub or cutoff,
+                            "summary": doc or "",
+                        }
+                    )
+                items_all.sort(key=lambda x: x["published"] or cutoff, reverse=True)
+                prev_items = items_all[:k]
+            else:
+                want = min(max(k * 3, k), 300)
+                res = await asyncio.to_thread(cache.query, query_texts=[interest], n_results=want, where=where)
+                ids = (res.get("ids") or [[]])[0]
+                mds = (res.get("metadatas") or [[]])[0]
+                docs = (res.get("documents") or [[]])[0]
+                prev_items: List[Dict[str, Any]] = []
+                cutoff_ts = cutoff.timestamp()
+                for i, md, doc in zip(ids, mds, docs):
+                    md = md or {}
+                    pub = None
+                    ts = md.get("published_ts")
+                    if isinstance(ts, (int, float)):
+                        try:
+                            pub = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        except Exception:
+                            pub = None
+                    if not pub:
+                        try:
+                            pub = dateparser.parse(md.get("published", ""))
+                        except Exception:
+                            pub = None
+                    if pub and pub.timestamp() < cutoff_ts:
+                        continue
+                    prev_items.append(
+                        {
+                            "id": f"https://arxiv.org/abs/{i}",
+                            "arxiv_id": i,
+                            "title": md.get("title", ""),
+                            "authors": md.get("authors", ""),
+                            "published": pub or cutoff,
+                            "summary": doc or "",
+                        }
+                    )
+                prev_items = prev_items[:k]
+
+            prev_ui = [paper_row(it) for it in prev_items]
+            if not prev_ui:
+                prev_ui = [Div("No cached matches in the last 7 days.", cls="p-3 text-slate-600 dark:text-slate-300")]
+            fallback_ui = Div(
+                Div(
+                    P(
+                        f"No new papers since your last checked time ({_human(since)}).",
+                        cls="text-sm text-slate-700 dark:text-slate-300",
+                    ),
+                    P(
+                        "Showing recent cached matches instead (last 7 days).",
+                        cls="text-xs text-slate-500 dark:text-slate-400 mb-2",
+                    ),
+                ),
+                Div(*prev_ui, cls="grid grid-cols-1 gap-4"),
+                cls="mt-4 p-3 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40",
+            )
+        except Exception as _e:
+            results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Titled(
         "ArXiv Results",
@@ -681,6 +829,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         ),
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
+                    (fallback_ui if fallback_ui is not None else None),
                     Div(
                         Button(
                             "Download & Summarize",
@@ -716,7 +865,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                 ),
                 Div(
                     P(
-                        f"Debug: fetched={len(items)} use_embeddings={'on' if use_embeddings!='off' else 'off'} top_k={top_k} narrowed={len(narrowed_items)} interest='{interest}'",
+                        f"Last checked: {_human(since)} | fetched={len(items)} | semantic={'on' if use_embeddings!='off' else 'off'} | top_k={top_k} | narrowed={len(narrowed_items)} | interest='{interest}'",
                         cls="text-xs text-slate-500 dark:text-slate-400 mt-2",
                     ),
                     P(f"Chroma error: {narrowing_error}", cls="text-xs text-red-500") if narrowing_error else None,
@@ -1057,6 +1206,21 @@ async def _maybe_fresh_state() -> None:  # type: ignore[attr-defined]
                 print("[DEBUG] FRESH=1: removed state.json", flush=True)
         except Exception as e:
             print(f"[DEBUG] FRESH=1: could not remove state.json: {e}", flush=True)
+    # Initialize session anchors lazily when categories are used; nothing to do here otherwise
+
+
+@app.on_event("shutdown")
+async def _persist_session_anchors() -> None:  # type: ignore[attr-defined]
+    # Advance per-category "last checked" when app closes
+    if not TOUCHED_CATEGORIES:
+        return
+    state = _load_state()
+    for cat in list(TOUCHED_CATEGORIES):
+        # Prefer the latest seen published time; fallback to now if none
+        dt = LATEST_SEEN.get(cat) or datetime.now(timezone.utc)
+        _set_last_run(state, cat, dt.isoformat())
+    _save_state(state)
+    print("[DEBUG] shutdown: advanced last checked for categories:", sorted(TOUCHED_CATEGORIES), flush=True)
 
 
 if __name__ == "__main__":

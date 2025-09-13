@@ -20,3 +20,17 @@
 - [x] Cap list sizes at 25 items on insert
 - [ ] Quick manual QA across two categories to verify ordering and reuse
 - [ ] Document behavior in README (short note under usage)
+
+---
+
+# Session-Based "Last checked" Flow
+
+- [x] Add session-scoped anchors per category (in-memory)
+- [x] Use session anchor for `since` in `/fetch` (don’t advance immediately)
+- [x] Track `latest_seen` per category during the session
+- [x] On `shutdown`, persist `last_run` per touched category to `latest_seen` (fallback: now)
+- [x] Update UI copy to show “Last checked … Updates when you close the app”
+- [x] In `/fetch`, if no new items, auto-render recent cached matches (last 7 days)
+- [ ] Manual QA: repeated fetches with filter tweaks yield consistent window
+- [ ] Manual QA: close app → reopen → “Last checked” advanced
+- [ ] Optional: add small banner on results clarifying fallback was used
