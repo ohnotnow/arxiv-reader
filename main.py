@@ -999,9 +999,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         ),
                         A(
                             "Back",
-                            href="#",
-                            onclick="history.back(); return false;",
-                            cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10",
+                            href="/",
+                            cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10 hover:bg-slate-300 dark:hover:bg-slate-600",
                         ),
                         Input(
                             type="number",
@@ -1101,6 +1100,9 @@ async def download(request: Request, category: str = "", interest: str = "", sum
     form = await request.form()
     # Multiple checkbox values under key 'selected'
     selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
+    # Preserve settings to reconstruct results
+    use_embeddings = form.get("use_embeddings") or "on"  # type: ignore[attr-defined]
+    top_k_val = form.get("top_k") or "50"  # type: ignore[attr-defined]
     if not selected_ids:
         return Titled(
             "No Selection",
@@ -1200,11 +1202,19 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             P(f"Saved under {out_dir}", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(*results_ui, cls="mt-4 space-y-3"),
             Div(
-                A(
-                    "Back",
-                    href="#",
-                    onclick="history.back(); return false;",
-                    cls="inline-block mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+                Form(
+                    Input(type="hidden", name="category", value=category),
+                    Input(type="hidden", name="interest", value=interest),
+                    Input(type="hidden", name="use_embeddings", value=("on" if (use_embeddings != "off") else "off")),
+                    Input(type="hidden", name="top_k", value=str(top_k_val)),
+                    Textarea(summary_style or "", name="summary_style", cls="hidden"),
+                    Button(
+                        "Back to results",
+                        type="submit",
+                        formaction="/fetch",
+                        formmethod="post",
+                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm",
+                    ),
                 ),
             ),
             cls="container mx-auto max-w-3xl p-4"
