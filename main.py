@@ -640,23 +640,12 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             cls="flex flex-col gap-1"
                         ),
                         Div(
-                            Button("Fetch", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
+                            Button("Fetch new papers", type="submit", formaction="/fetch", formmethod="post", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
                             cls="mt-2"
                         ),
                         cls="space-y-4"
                     ),
-                    Div(
-                        P(
-                            f"Last checked for {cat_code}: {_human(last_run)}",
-                            id="last_checked_text",
-                            cls="text-sm text-slate-600 dark:text-slate-300",
-                        ),
-                        P(
-                            "Shows new papers since this time. Updates when you close the app.",
-                            cls="text-xs text-slate-500 dark:text-slate-400",
-                        ),
-                        cls="mt-4 space-y-1",
-                    ),
+                    None,
                     cls="bg-white dark:bg-slate-800 dark:border-slate-700 p-4 rounded-lg border"
                 ),
                 cls="container mx-auto max-w-3xl p-4"

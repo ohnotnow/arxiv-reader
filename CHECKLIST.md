@@ -39,3 +39,4 @@
 
 - [x] Show per-category “Last checked” inside category dropdown options
 - [x] Update “Last checked for …” text live when category selection changes
+- [x] Rename button to “Fetch new papers” and remove bottom “Last checked / updates when you close the app” copy
