@@ -716,8 +716,8 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
         if error_msg:
             controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
         controls.extend([
-            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(
+                Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
                 Select(
                     *opts,
                     onchange=(
@@ -729,7 +729,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "})(this)"
                     ),
                     cls=(
-                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
                     ),
                 ),
@@ -748,7 +748,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
-                cls="flex items-center"
+                cls="flex items-center gap-2"
             ),
             Input(type="hidden", id="style_selected_title", name="style_selected_title", value=title),
             Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
@@ -792,7 +792,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
             ),
         ])
         # Return only the inner section so HTMX swapping #styles_section doesn't duplicate the outer label
-        return Div(*controls, id="styles_section", cls="flex flex-col gap-1")
+        return Div(*controls, id="styles_section", cls="flex flex-col gap-2")
 
     return render_styles_section(title, body, error, saved_msg)
 
@@ -834,8 +834,8 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
         if error_msg:
             controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
         controls.extend([
-            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(
+                Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
                 Select(
                     *opts,
                     onchange=(
@@ -847,7 +847,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "})(this)"
                     ),
                     cls=(
-                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
                     ),
                 ),
@@ -866,7 +866,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
-                cls="flex items-center"
+                cls="flex items-center gap-2"
             ),
             Input(type="hidden", id="style_selected_title", name="style_selected_title", value=("" if saved_msg else title)),
             Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
@@ -910,7 +910,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
             ),
         ])
         # Return only the inner section so HTMX swapping #styles_section doesn't duplicate the outer label
-        return Div(*controls, id="styles_section", cls="flex flex-col gap-1")
+        return Div(*controls, id="styles_section", cls="flex flex-col gap-2")
 
     return render_styles_section("" if saved_msg else title, "" if saved_msg else body, error, saved_msg)
 
@@ -1116,8 +1116,8 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         if error_msg:
             controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
         controls.extend([
-            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
             Div(
+                Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
                 Select(
                     *opts,
                     onchange=(
@@ -1129,7 +1129,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "})(this)"
                     ),
                     cls=(
-                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
                     ),
                 ),
@@ -1148,7 +1148,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
-                cls="flex items-center"
+                cls="flex items-center gap-2"
             ),
             Input(type="hidden", id="style_selected_title", name="style_selected_title", value=current_title_val),
             Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
@@ -1191,11 +1191,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                 cls=""
             ),
         ])
-        return Div(
-            Label("Summary style", cls="font-medium"),
-            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
-            cls="flex flex-col gap-1"
-        )
+        return Div(*controls, id="styles_section", cls="flex flex-col gap-2")
 
     # Build category -> last checked label map for dropdown
     cat_last_checked: Dict[str, str] = {}
@@ -1266,7 +1262,13 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             ) if recent_interests else None),
                             cls="flex flex-col gap-1"
                         ),
-                        render_styles_section(current_title, default_style),
+                        Div(
+                            render_styles_section(current_title, default_style),
+                            cls=(
+                                "p-3 rounded-lg border border-slate-200 bg-slate-50 "
+                                "dark:bg-slate-800/40 dark:border-slate-600"
+                            ),
+                        ),
                         Div(
                             Button(
                                 Span("More settings ", cls=""),
