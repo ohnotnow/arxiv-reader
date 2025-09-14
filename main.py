@@ -718,20 +718,24 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
         controls.extend([
             Div(
                 Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
-                Select(
-                    *opts,
-                    onchange=(
-                        "(function(sel){var opt=sel.selectedOptions[0];"
-                        "var t=document.getElementById('style_title_input');"
-                        "var b=document.getElementById('summary_style_input');"
-                        "var s=document.getElementById('style_selected_title');"
-                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
-                        "})(this)"
+                Div(
+                    Select(
+                        *opts,
+                        onchange=(
+                            "(function(sel){var opt=sel.selectedOptions[0];"
+                            "var t=document.getElementById('style_title_input');"
+                            "var b=document.getElementById('summary_style_input');"
+                            "var s=document.getElementById('style_selected_title');"
+                            "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                            "})(this)"
+                        ),
+                        cls=(
+                            "appearance-none w-full border rounded p-2 pr-10 border-slate-300 bg-white text-slate-900 "
+                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                        ),
                     ),
-                    cls=(
-                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-                    ),
+                    Span("▼", cls="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-300 text-sm", **{"aria-hidden": "true"}),
+                    cls="relative flex-1 min-w-0"
                 ),
                 Button(
                     "Delete",
@@ -837,20 +841,24 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
         controls.extend([
             Div(
                 Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
-                Select(
-                    *opts,
-                    onchange=(
-                        "(function(sel){var opt=sel.selectedOptions[0];"
-                        "var t=document.getElementById('style_title_input');"
-                        "var b=document.getElementById('summary_style_input');"
-                        "var s=document.getElementById('style_selected_title');"
-                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
-                        "})(this)"
+                Div(
+                    Select(
+                        *opts,
+                        onchange=(
+                            "(function(sel){var opt=sel.selectedOptions[0];"
+                            "var t=document.getElementById('style_title_input');"
+                            "var b=document.getElementById('summary_style_input');"
+                            "var s=document.getElementById('style_selected_title');"
+                            "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                            "})(this)"
+                        ),
+                        cls=(
+                            "appearance-none w-full border rounded p-2 pr-10 border-slate-300 bg-white text-slate-900 "
+                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                        ),
                     ),
-                    cls=(
-                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-                    ),
+                    Span("▼", cls="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-300 text-sm", **{"aria-hidden": "true"}),
+                    cls="relative flex-1 min-w-0"
                 ),
                 Button(
                     "Delete",
@@ -1120,20 +1128,24 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         controls.extend([
             Div(
                 Label("Summary style", cls="font-medium whitespace-nowrap mr-2"),
-                Select(
-                    *opts,
-                    onchange=(
-                        "(function(sel){var opt=sel.selectedOptions[0];"
-                        "var t=document.getElementById('style_title_input');"
-                        "var b=document.getElementById('summary_style_input');"
-                        "var s=document.getElementById('style_selected_title');"
-                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
-                        "})(this)"
+                Div(
+                    Select(
+                        *opts,
+                        onchange=(
+                            "(function(sel){var opt=sel.selectedOptions[0];"
+                            "var t=document.getElementById('style_title_input');"
+                            "var b=document.getElementById('summary_style_input');"
+                            "var s=document.getElementById('style_selected_title');"
+                            "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                            "})(this)"
+                        ),
+                        cls=(
+                            "appearance-none w-full border rounded p-2 pr-10 border-slate-300 bg-white text-slate-900 "
+                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                        ),
                     ),
-                    cls=(
-                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-                    ),
+                    Span("▼", cls="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-300 text-sm", **{"aria-hidden": "true"}),
+                    cls="relative flex-1 min-w-0"
                 ),
                 Button(
                     "Delete",
