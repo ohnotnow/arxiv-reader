@@ -266,7 +266,7 @@ def _slugify(name: str) -> str:
 def _css_id(name: str) -> str:
     """Return a CSS-selector-safe id segment derived from ``name``.
 
-    Replaces whitespace with dashes and collapses any non [a-zA-Z0-9_\-]
+    Replaces whitespace with dashes and collapses any non [a-zA-Z0-9_-]
     characters into single dashes so it can be safely used with
     document.querySelector without escaping (e.g., dots in arXiv IDs).
     """
@@ -471,7 +471,7 @@ def openai_summarize(text: str, style: str) -> str:
 tailwind = Script(src="https://cdn.tailwindcss.com")
 htmx = Script(src="https://unpkg.com/htmx.org@1.9.12")
 
-app, rt = fast_app(hdrs=(tailwind, htmx))
+app, rt = fast_app(hdrs=(tailwind, htmx), pico=False)
 
 
 def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None, choices: Optional[Dict[str, str]] = None):
@@ -672,12 +672,12 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     for code in (display_map.values()):
         cat_last_checked[code] = _human(_get_session_anchor(code))
 
-    return Titled(
-        "arXiv Helper",
-        Div(
-            Div(
-                H1("arXiv Helper", cls="text-2xl font-bold mb-2"),
-                P("Find new papers by category since last run.", cls="text-slate-600 dark:text-slate-300 mb-4"),
+    return Html(
+        Head(Title("arXiv Helper"), tailwind, htmx),
+        Body(
+            Main(
+                Div(
+                    P("Find new papers by category since last run.", cls="text-slate-600 dark:text-slate-300 mb-4"),
                 Div(
                     Form(
                         Div(
@@ -784,7 +784,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Div(
                                         Label("Top K results", cls="text-sm font-medium mb-1"),
                                         Input(type="number", name="top_k", value=str(default_top_k), min="5", max="200", cls=(
-                                            "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                            "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                         )),
                                         cls="flex-1"
@@ -797,7 +797,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                             Option("High", value="high"),
                                             name="verbosity",
                                             cls=(
-                                                "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                                "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                                 "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                             ),
                                         ),
@@ -812,7 +812,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                             Option("High", value="high"),
                                             name="reasoning",
                                             cls=(
-                                                "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                                "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                                 "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                             ),
                                         ),
@@ -861,9 +861,11 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                 ),
                 cls="container mx-auto max-w-3xl p-4"
             ),
-            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+            cls="mx-auto"
         ),
+        cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
     )
+)
 
 
 @rt("/fetch")
@@ -1036,11 +1038,12 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
         except Exception as _e:
             results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
-    return Titled(
-        "ArXiv Results",
-        Div(
-            Div(
-                H1("Results", cls="text-2xl font-bold mb-4"),
+    return Html(
+        Head(Title("ArXiv Results"), tailwind, htmx),
+        Body(
+            Main(
+                Div(
+                    H1("Results", cls="text-2xl font-bold mb-4"),
                 Form(
                     Div(
                         Input(type="hidden", name="category", value=category),
@@ -1105,9 +1108,11 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                 ),
                 cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border",
             ),
-            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100",
+            cls="mx-auto"
         ),
+        cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
     )
+)
 
 
 def _download_pdf_via_arxiv(arxid: str, dest: Path) -> None:
@@ -1179,17 +1184,23 @@ async def download(request: Request, category: str = "", interest: str = "", sum
     use_embeddings = form.get("use_embeddings") or "on"  # type: ignore[attr-defined]
     top_k_val = form.get("top_k") or "50"  # type: ignore[attr-defined]
     if not selected_ids:
-        return Titled(
-            "No Selection",
-            Div(
-                P("No papers selected."),
-                A(
-                    "Back",
-                    href="#",
-                    onclick="history.back(); return false;",
-                    cls="inline-block mt-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+        return Html(
+            Head(Title("No Selection"), tailwind, htmx),
+            Body(
+                Main(
+                    Div(
+                        P("No papers selected."),
+                        A(
+                            "Back",
+                            href="#",
+                            onclick="history.back(); return false;",
+                            cls="inline-block mt-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded",
+                        ),
+                        cls="container mx-auto max-w-3xl p-4"
+                    ),
+                    cls="mx-auto"
                 ),
-                cls="p-4"
+                cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
             )
         )
 
@@ -1319,14 +1330,15 @@ async def download(request: Request, category: str = "", interest: str = "", sum
         except Exception as e:
             results_ui.append(Div(H3(f"{arxid}"), P(f"Error: {e}", cls="text-red-600"), cls="p-3 border rounded"))
 
-    return Titled(
-        "Download + Summaries",
-        Div(
-            H1("Download + Summaries", cls="text-2xl font-bold mb-3"),
-            P("Using per-paper cache under papers/<arXiv ID>", cls="text-sm text-slate-600 dark:text-slate-300"),
-            Div(*results_ui, cls="mt-4 space-y-3"),
-            Div(
-                Form(
+    return Html(
+        Head(Title("Download + Summaries"), tailwind, htmx),
+        Body(
+            Main(
+                Div(
+                    P("Using per-paper cache under papers/<arXiv ID>", cls="text-sm text-slate-600 dark:text-slate-300"),
+                Div(*results_ui, cls="mt-4 space-y-3"),
+                Div(
+                    Form(
                     Input(type="hidden", name="category", value=category),
                     Input(type="hidden", name="interest", value=interest),
                     Input(type="hidden", name="use_embeddings", value=("on" if (use_embeddings != "off") else "off")),
@@ -1341,11 +1353,15 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         formmethod="post",
                         cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm",
                     ),
+                    ),
                 ),
+                cls="container mx-auto max-w-3xl p-4"
             ),
-            cls="container mx-auto max-w-3xl p-4"
+            cls="mx-auto"
         ),
+        cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
     )
+)
 
 
 @rt("/previous")
@@ -1448,11 +1464,12 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
     if not results:
         results = [Div("No cached matches in the selected window.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
-    return Titled(
-        "arXiv Helper",
-        Div(
-            Div(
-                H1("Previous Matches", cls="text-2xl font-bold mb-4"),
+    return Html(
+        Head(Title("arXiv Helper"), tailwind, htmx),
+        Body(
+            Main(
+                Div(
+                    H1("Previous Matches", cls="text-2xl font-bold mb-4"),
                 Form(
                     Div(
                         Input(type="hidden", name="category", value=category),
@@ -1498,9 +1515,11 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                 ),
                 cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
             ),
-            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+            cls="mx-auto"
         ),
+        cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
     )
+)
 
 
 # Removed legacy generic /files route in favor of UUID-based routes above
@@ -1559,10 +1578,11 @@ def categories_page(error: str | None = None, saved: str | None = None, q: str |
             suggestions_ui = P("No matches.", cls="text-xs text-slate-500 mt-2")
     elif q and not cache:
         suggestions_ui = P("Category cache not available. Run the fetch script to enable search.", cls="text-xs text-slate-500 mt-2")
-    return Titled(
-        "Manage Categories",
-        Div(
-            Div(
+    return Html(
+        Head(Title("Manage Categories"), tailwind, htmx),
+        Body(
+            Main(
+                Div(
                 H1("Manage Categories", cls="text-2xl font-bold mb-3"),
                 P("Edit your category list below. One per line as 'Label|code' (e.g., 'Computation and Language|cs.CL').", cls="text-sm text-slate-600 dark:text-slate-300 mb-3"),
                 flash,
@@ -1639,9 +1659,11 @@ def categories_page(error: str | None = None, saved: str | None = None, q: str |
                 ),
                 cls="container mx-auto max-w-3xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg border"
             ),
-            cls="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100",
+            cls="mx-auto"
         ),
+        cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
     )
+)
 
 
 def _parse_categories_bulk(bulk: str) -> List[Dict[str, str]]:
@@ -1820,7 +1842,13 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
     if htmx:
         return block
     # Fallback: small page
-    return Titled(
-        "Regenerated Summary",
-        Div(block, cls="container mx-auto max-w-3xl p-4"),
+    return Html(
+        Head(Title("Regenerated Summary"), tailwind, htmx),
+        Body(
+            Main(
+                Div(block, cls="container mx-auto max-w-3xl p-4"),
+                cls="mx-auto"
+            ),
+            cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
+        )
     )
