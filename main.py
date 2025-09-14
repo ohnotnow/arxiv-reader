@@ -155,6 +155,74 @@ def _normalize_style(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
 
 
+# ---------- Named Styles (saved styles with title + body) ----------
+def _get_styles(state: Dict[str, Any]) -> Dict[str, Any]:
+    styles = state.get("styles")
+    if isinstance(styles, dict) and isinstance(styles.get("items"), list):
+        return styles
+    return {"items": []}
+
+
+def _set_styles(state: Dict[str, Any], styles: Dict[str, Any]) -> None:
+    if not isinstance(styles, dict):
+        styles = {"items": []}
+    items = styles.get("items")
+    if not isinstance(items, list):
+        styles["items"] = []
+    state["styles"] = styles
+
+
+def _normalize_title(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip()).lower()
+
+
+def _find_style_index(styles: Dict[str, Any], title: str) -> Optional[int]:
+    items = styles.get("items")
+    if not isinstance(items, list):
+        return None
+    key = _normalize_title(title)
+    for i, it in enumerate(items):
+        if not isinstance(it, dict):
+            continue
+        t = _normalize_title(str(it.get("title", "")))
+        if t == key:
+            return i
+    return None
+
+
+def _upsert_style(state: Dict[str, Any], title: str, body: str) -> None:
+    styles = _get_styles(state)
+    items = styles.get("items")
+    if not isinstance(items, list):
+        items = []
+        styles["items"] = items
+    idx = _find_style_index(styles, title)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if idx is not None:
+        it = items[idx] if idx < len(items) else {}
+        it = {**it, "title": title, "body": body, "ts": now_iso, "count": int(it.get("count", 0) or 0) + 1}
+        items[idx] = it
+    else:
+        items.insert(0, {"title": title, "body": body, "ts": now_iso, "count": 1})
+    _set_styles(state, styles)
+
+
+def _delete_style(state: Dict[str, Any], title: str) -> bool:
+    styles = _get_styles(state)
+    items = styles.get("items")
+    if not isinstance(items, list):
+        return False
+    idx = _find_style_index(styles, title)
+    if idx is None:
+        return False
+    try:
+        items.pop(idx)
+    except Exception:
+        return False
+    _set_styles(state, styles)
+    return True
+
+
 def _push_history(history: Dict[str, Any], kind: str, value: str, *, category: Optional[str] = None, cap: int = 25) -> None:
     if not value or not value.strip():
         return
@@ -477,6 +545,12 @@ def openai_summarize(
         "begin directly with the summary content."
     )
 
+    # Language guidance to avoid accidental non-English outputs when titles contain non-English words
+    base_instructions += (
+        "\n\nPlease write the summary in English unless the user has explicitly "
+        "requested another language."
+    )
+
     # Only append markdown guidance if the user hasn't already specified it
     if "markdown" not in (style_clean or "").lower():
         base_instructions += (
@@ -596,6 +670,255 @@ def category_select(selected: str | None = None, last_checked_labels: Optional[D
             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
         ),
     )
+
+
+# ---------- Styles management (HTMX partials) ----------
+
+@rt("/styles/save")
+def styles_save(style_title_input: str = "", summary_style: str = ""):
+    state = _load_state()
+    title = (style_title_input or "").strip()
+    body = (summary_style or "").strip()
+    error = None
+    saved_msg = None
+    # Basic validation
+    if not title or not body:
+        error = "Both style title and style guide are required."
+    elif len(title) > 60:
+        error = "Style title is too long (max 60 characters)."
+    else:
+        _upsert_style(state, title, body)
+        # Also remember as the preference for convenience
+        prefs = _get_prefs(state)
+        prefs["summary_style"] = body
+        _set_prefs(state, prefs)
+        _save_state(state)
+        saved_msg = f"Saved style: {title}"
+
+    # Re-render styles section partial
+    saved_styles = _get_styles(state)
+    saved_items: List[Dict[str, str]] = []
+    if isinstance(saved_styles.get("items"), list):
+        for it in saved_styles["items"]:
+            if isinstance(it, dict) and (it.get("title") and it.get("body")):
+                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+
+    def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
+        opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
+        for it in saved_items:
+            t = it.get("title", "")
+            b = it.get("body", "")
+            sel = (t == current_title_val)
+            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+        controls: List[Any] = []
+        if saved_msg:
+            controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
+        if error_msg:
+            controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
+        controls.extend([
+            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Div(
+                Select(
+                    *opts,
+                    onchange=(
+                        "(function(sel){var opt=sel.selectedOptions[0];"
+                        "var t=document.getElementById('style_title_input');"
+                        "var b=document.getElementById('summary_style_input');"
+                        "var s=document.getElementById('style_selected_title');"
+                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "})(this)"
+                    ),
+                    cls=(
+                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                    ),
+                ),
+                Button(
+                    "Delete",
+                    type="button",
+                    cls=(
+                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                    ),
+                    **{
+                        "hx-post": "/styles/delete",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-confirm": "Delete selected style?",
+                    },
+                ),
+                cls="flex items-center"
+            ),
+            Input(type="hidden", id="style_selected_title", name="style_selected_title", value=title),
+            Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Input(
+                id="style_title_input",
+                placeholder="e.g., ELI5, Executive summary, Reviewer notes",
+                value=title,
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                ),
+            ),
+            Label("Style guide", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Textarea(
+                body,
+                name="summary_style",
+                id="summary_style_input",
+                rows=4,
+                placeholder="Describe how to write the summary…",
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                ),
+            ),
+            Div(
+                Button(
+                    "Save / Update",
+                    type="button",
+                    cls=(
+                        "mt-2 inline-flex items-center justify-center h-9 px-3 rounded bg-emerald-600 text-white "
+                        "text-sm hover:bg-emerald-700"
+                    ),
+                    **{
+                        "hx-post": "/styles/save",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_title_input, #summary_style_input",
+                    },
+                ),
+                cls=""
+            ),
+        ])
+        return Div(
+            Label("Summary style", cls="font-medium"),
+            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
+            cls="flex flex-col gap-1"
+        )
+
+    return render_styles_section(title, body, error, saved_msg)
+
+
+@rt("/styles/delete")
+def styles_delete(style_selected_title: str = "", summary_style: str = ""):
+    state = _load_state()
+    title = (style_selected_title or "").strip()
+    body = (summary_style or "").strip()
+    error = None
+    saved_msg = None
+    if not title:
+        error = "No style selected to delete."
+    else:
+        ok = _delete_style(state, title)
+        if ok:
+            _save_state(state)
+            saved_msg = f"Deleted style: {title}"
+        else:
+            error = f"Style not found: {title}"
+
+    saved_styles = _get_styles(state)
+    saved_items: List[Dict[str, str]] = []
+    if isinstance(saved_styles.get("items"), list):
+        for it in saved_styles["items"]:
+            if isinstance(it, dict) and (it.get("title") and it.get("body")):
+                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+
+    def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
+        opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
+        for it in saved_items:
+            t = it.get("title", "")
+            b = it.get("body", "")
+            sel = (t == current_title_val)
+            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+        controls: List[Any] = []
+        if saved_msg:
+            controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
+        if error_msg:
+            controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
+        controls.extend([
+            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Div(
+                Select(
+                    *opts,
+                    onchange=(
+                        "(function(sel){var opt=sel.selectedOptions[0];"
+                        "var t=document.getElementById('style_title_input');"
+                        "var b=document.getElementById('summary_style_input');"
+                        "var s=document.getElementById('style_selected_title');"
+                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "})(this)"
+                    ),
+                    cls=(
+                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                    ),
+                ),
+                Button(
+                    "Delete",
+                    type="button",
+                    cls=(
+                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                    ),
+                    **{
+                        "hx-post": "/styles/delete",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-confirm": "Delete selected style?",
+                    },
+                ),
+                cls="flex items-center"
+            ),
+            Input(type="hidden", id="style_selected_title", name="style_selected_title", value=("" if saved_msg else title)),
+            Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Input(
+                id="style_title_input",
+                placeholder="e.g., ELI5, Executive summary, Reviewer notes",
+                value=("" if saved_msg else title),
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                ),
+            ),
+            Label("Style guide", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Textarea(
+                ("" if saved_msg else body),
+                name="summary_style",
+                id="summary_style_input",
+                rows=4,
+                placeholder="Describe how to write the summary…",
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                ),
+            ),
+            Div(
+                Button(
+                    "Save / Update",
+                    type="button",
+                    cls=(
+                        "mt-2 inline-flex items-center justify-center h-9 px-3 rounded bg-emerald-600 text-white "
+                        "text-sm hover:bg-emerald-700"
+                    ),
+                    **{
+                        "hx-post": "/styles/save",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_title_input, #summary_style_input",
+                    },
+                ),
+                cls=""
+            ),
+        ])
+        return Div(
+            Label("Summary style", cls="font-medium"),
+            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
+            cls="flex flex-col gap-1"
+        )
+
+    return render_styles_section("" if saved_msg else title, "" if saved_msg else body, error, saved_msg)
 
 
 # ---------- User category list helpers ----------
@@ -772,6 +1095,113 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     history = _get_history(state)
     recent_interests = _recent_interests(history, cat_code, limit=10)
     recent_styles = _recent_styles(history, limit=10)
+    saved_styles = _get_styles(state)
+    saved_items: List[Dict[str, str]] = []
+    if isinstance(saved_styles.get("items"), list):
+        for it in saved_styles["items"]:
+            if isinstance(it, dict) and (it.get("title") and it.get("body")):
+                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+    # Determine current title if the default style matches a saved body
+    current_title = ""
+    for it in saved_items:
+        if it.get("body", "") == (default_style or ""):
+            current_title = it.get("title", "")
+            break
+
+    def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
+        # Build a select of saved titles; use option value as body and data-title as title.
+        opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
+        for it in saved_items:
+            t = it.get("title", "")
+            b = it.get("body", "")
+            sel = (t == current_title_val)
+            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+        controls = []
+        if saved_msg:
+            controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
+        if error_msg:
+            controls.append(Div(error_msg, cls="mb-2 p-2 rounded bg-red-50 text-red-700 border border-red-200 text-sm"))
+        controls.extend([
+            Label("Saved styles", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Div(
+                Select(
+                    *opts,
+                    onchange=(
+                        "(function(sel){var opt=sel.selectedOptions[0];"
+                        "var t=document.getElementById('style_title_input');"
+                        "var b=document.getElementById('summary_style_input');"
+                        "var s=document.getElementById('style_selected_title');"
+                        "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "})(this)"
+                    ),
+                    cls=(
+                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                    ),
+                ),
+                Button(
+                    "Delete",
+                    type="button",
+                    cls=(
+                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                    ),
+                    **{
+                        "hx-post": "/styles/delete",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-confirm": "Delete selected style?",
+                    },
+                ),
+                cls="flex items-center"
+            ),
+            Input(type="hidden", id="style_selected_title", name="style_selected_title", value=current_title_val),
+            Label("Style title", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Input(
+                id="style_title_input",
+                placeholder="e.g., ELI5, Executive summary, Reviewer notes",
+                value=current_title_val,
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                ),
+            ),
+            Label("Style guide", cls="text-sm text-slate-600 dark:text-slate-300"),
+            Textarea(
+                current_body_val,
+                name="summary_style",
+                id="summary_style_input",
+                rows=4,
+                placeholder="Describe how to write the summary…",
+                cls=(
+                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                ),
+            ),
+            Div(
+                Button(
+                    "Save / Update",
+                    type="button",
+                    cls=(
+                        "mt-2 inline-flex items-center justify-center h-9 px-3 rounded bg-emerald-600 text-white "
+                        "text-sm hover:bg-emerald-700"
+                    ),
+                    **{
+                        "hx-post": "/styles/save",
+                        "hx-target": "#styles_section",
+                        "hx-swap": "outerHTML",
+                        "hx-include": "#style_title_input, #summary_style_input",
+                    },
+                ),
+                cls=""
+            ),
+        ])
+        return Div(
+            Label("Summary style", cls="font-medium"),
+            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
+            cls="flex flex-col gap-1"
+        )
 
     # Build category -> last checked label map for dropdown
     cat_last_checked: Dict[str, str] = {}
@@ -842,33 +1272,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             ) if recent_interests else None),
                             cls="flex flex-col gap-1"
                         ),
-                        Div(
-                            Label("Summary style", cls="font-medium"),
-                            (Div(
-                                Label("Recent styles", cls="text-sm text-slate-600 dark:text-slate-300"),
-                                Select(
-                                    Option("Select a recent style…", value=""),
-                                    *[Option(_truncate_label(s), value=s) for s in recent_styles],
-                                    onchange="document.querySelector('#summary_style_input').value=this.value",
-                                    cls=(
-                                        "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
-                                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
-                                    ),
-                                ),
-                                cls="flex flex-col gap-1"
-                            ) if recent_styles else None),
-                            Textarea(
-                                default_style,
-                                name="summary_style",
-                                id="summary_style_input",
-                                rows=4,
-                                cls=(
-                                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
-                                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-                                ),
-                            ),
-                            cls="flex flex-col gap-1"
-                        ),
+                        render_styles_section(current_title, default_style),
                         Div(
                             Button(
                                 Span("More settings ", cls=""),
