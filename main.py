@@ -791,11 +791,8 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                 cls=""
             ),
         ])
-        return Div(
-            Label("Summary style", cls="font-medium"),
-            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
-            cls="flex flex-col gap-1"
-        )
+        # Return only the inner section so HTMX swapping #styles_section doesn't duplicate the outer label
+        return Div(*controls, id="styles_section", cls="flex flex-col gap-1")
 
     return render_styles_section(title, body, error, saved_msg)
 
@@ -912,11 +909,8 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                 cls=""
             ),
         ])
-        return Div(
-            Label("Summary style", cls="font-medium"),
-            Div(*controls, id="styles_section", cls="flex flex-col gap-1"),
-            cls="flex flex-col gap-1"
-        )
+        # Return only the inner section so HTMX swapping #styles_section doesn't duplicate the outer label
+        return Div(*controls, id="styles_section", cls="flex flex-col gap-1")
 
     return render_styles_section("" if saved_msg else title, "" if saved_msg else body, error, saved_msg)
 
