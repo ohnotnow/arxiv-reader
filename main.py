@@ -1207,7 +1207,6 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         Body(
             Main(
                 Div(
-                    P("Find new papers by category since last run.", cls="text-slate-600 dark:text-slate-300 mb-4"),
                 Div(
                     Form(
                         Div(
@@ -1236,29 +1235,30 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         ),
                         Div(
                             Label("Specific interest (optional)", cls="font-medium"),
-                            (Div(
-                                Label("Recent interests", cls="text-sm text-slate-600 dark:text-slate-300"),
-                                Select(
-                                    Option("Select a recent interest…", value=""),
-                                    *[Option(_truncate_label(s), value=s) for s in recent_interests],
-                                    onchange="document.querySelector('#interest_input').value=this.value",
+                            Div(
+                                Input(
+                                    name="interest",
+                                    id="interest_input",
+                                    placeholder="e.g. retrieval-augmented generation",
+                                    value=interest_value,
+                                    list="recent-interests",
                                     cls=(
                                         "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
-                                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                     ),
                                 ),
-                                cls="flex flex-col gap-1"
-                            ) if recent_interests else None),
-                            Input(
-                                name="interest",
-                                id="interest_input",
-                                placeholder="e.g. retrieval-augmented generation",
-                                value=interest_value,
-                                list="recent-interests",
-                                cls=(
-                                    "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
-                                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                (
+                                    Select(
+                                        Option("Recent interests…", value=""),
+                                        *[Option(_truncate_label(s), value=s) for s in recent_interests],
+                                        onchange="document.querySelector('#interest_input').value=this.value",
+                                        cls=(
+                                            "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
+                                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                        ),
+                                    ) if recent_interests else None
                                 ),
+                                cls="grid grid-cols-1 md:grid-cols-2 gap-2"
                             ),
                             (Datalist(
                                 *[Option(value=val) for val in recent_interests],
