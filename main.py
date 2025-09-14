@@ -764,29 +764,79 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             cls="flex flex-col gap-1"
                         ),
                         Div(
-                            Label("Narrow results with embeddings", cls="font-medium"),
-                            Div(
-                                Input(
-                                    type="checkbox",
-                                    name="use_embeddings",
-                                    checked=(default_use_emb != "off"),
-                                    cls=(
-                                        "h-4 w-4 mr-2 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
-                                        "bg-white dark:bg-slate-900 accent-blue-600 focus:ring-2 focus:ring-blue-500"
-                                    ),
+                            Button(
+                                Span("More settings ", cls=""),
+                                Span("▼", cls="inline-block transition-transform duration-200", id="settings_chevron"),
+                                type="button",
+                                onclick=(
+                                    "const panel=this.nextElementSibling; "
+                                    "const chevron=this.querySelector('#settings_chevron'); "
+                                    "const textSpan=this.querySelector('span:first-child'); "
+                                    "const isHidden=panel.style.display==='none'; "
+                                    "panel.style.display=isHidden?'block':'none'; "
+                                    "textSpan.textContent=isHidden?'Less settings ':'More settings '; "
+                                    "chevron.style.transform=isHidden?'rotate(180deg)':'rotate(0deg)';"
                                 ),
-                                Label("Use semantic filter", cls="text-sm text-slate-700 dark:text-slate-300"),
-                                cls="flex items-center"
+                                cls="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer text-sm font-normal bg-transparent border-none p-0 mb-2"
                             ),
-                            cls="flex flex-col gap-1"
-                        ),
-                        Div(
-                            Label("Top K results", cls="font-medium"),
-                            Input(type="number", name="top_k", value=str(default_top_k), min="5", max="200", cls=(
-                                "border rounded p-2 w-full border-slate-300 bg-white text-slate-900 "
-                                "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-                            )),
-                            cls="flex flex-col gap-1"
+                            Div(
+                                Div(
+                                    Div(
+                                        Label("Top K results", cls="text-sm font-medium mb-1"),
+                                        Input(type="number", name="top_k", value=str(default_top_k), min="5", max="200", cls=(
+                                            "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                        )),
+                                        cls="flex-1"
+                                    ),
+                                    Div(
+                                        Label("Verbosity", cls="text-sm font-medium mb-1"),
+                                        Select(
+                                            Option("Low", value="low"),
+                                            Option("Medium", value="medium", selected=True),
+                                            Option("High", value="high"),
+                                            name="verbosity",
+                                            cls=(
+                                                "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                                "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                            ),
+                                        ),
+                                        cls="flex-1"
+                                    ),
+                                    Div(
+                                        Label("Reasoning", cls="text-sm font-medium mb-1"),
+                                        Select(
+                                            Option("Minimal", value="minimal"),
+                                            Option("Low", value="low"),
+                                            Option("Medium", value="medium", selected=True),
+                                            Option("High", value="high"),
+                                            name="reasoning",
+                                            cls=(
+                                                "border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
+                                                "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                                            ),
+                                        ),
+                                        cls="flex-1"
+                                    ),
+                                    cls="flex gap-3 mb-3"
+                                ),
+                                Div(
+                                    Input(
+                                        type="checkbox",
+                                        name="use_embeddings",
+                                        checked=(default_use_emb != "off"),
+                                        cls=(
+                                            "h-4 w-4 mr-2 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
+                                            "bg-white dark:bg-slate-900 accent-blue-600 focus:ring-2 focus:ring-blue-500"
+                                        ),
+                                    ),
+                                    Label("Use semantic filter", cls="text-sm text-slate-700 dark:text-slate-300"),
+                                    cls="flex items-center"
+                                ),
+                                style="display:none",
+                                cls="border-t pt-3 mt-2"
+                            ),
+                            cls="flex flex-col"
                         ),
                         Div(
                             Button(
@@ -817,7 +867,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 
 
 @rt("/fetch")
-async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50"):
+async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50", verbosity: str = "medium", reasoning: str = "medium"):
     state = _load_state()
     # Use session anchor (stable during app lifetime)
     since = _get_session_anchor(category)
@@ -997,6 +1047,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                         Input(type="hidden", name="interest", value=interest),
                         Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
                         Input(type="hidden", name="top_k", value=str(top_k)),
+                        Input(type="hidden", name="verbosity", value=verbosity),
+                        Input(type="hidden", name="reasoning", value=reasoning),
                         Textarea(
                             summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
                             name="summary_style",
@@ -1119,7 +1171,7 @@ def download_file(path: str):
 
 
 @rt("/download")
-async def download(request: Request, category: str = "", interest: str = "", summary_style: str = ""):
+async def download(request: Request, category: str = "", interest: str = "", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
     form = await request.form()
     # Multiple checkbox values under key 'selected'
     selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
@@ -1279,6 +1331,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     Input(type="hidden", name="interest", value=interest),
                     Input(type="hidden", name="use_embeddings", value=("on" if (use_embeddings != "off") else "off")),
                     Input(type="hidden", name="top_k", value=str(top_k_val)),
+                    Input(type="hidden", name="verbosity", value=verbosity),
+                    Input(type="hidden", name="reasoning", value=reasoning),
                     Textarea(summary_style or "", name="summary_style", cls="hidden"),
                     Button(
                         "Back to results",
@@ -1295,7 +1349,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
 
 
 @rt("/previous")
-async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "50", previous_days: str = "7", summary_style: str = ""):
+async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "50", previous_days: str = "7", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
     # Look back over past N days in the Chroma cache and return top-k matches
     k = max(5, min(200, int(top_k or "50")))
     days = max(1, min(60, int(previous_days or "7")))
@@ -1406,6 +1460,8 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                         Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
                         Input(type="hidden", name="top_k", value=str(k)),
                         Input(type="hidden", name="previous_days", value=str(days)),
+                        Input(type="hidden", name="verbosity", value=verbosity),
+                        Input(type="hidden", name="reasoning", value=reasoning),
                         Textarea(summary_style or "", name="summary_style", cls="hidden"),
                     ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
