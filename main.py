@@ -729,7 +729,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "})(this)"
                     ),
                     cls=(
-                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
@@ -848,7 +848,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "})(this)"
                     ),
                     cls=(
-                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
@@ -1131,7 +1131,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "})(this)"
                     ),
                     cls=(
-                        "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
+                        "flex-1 min-w-0 border rounded p-2 pr-8 border-slate-300 bg-white text-slate-900 "
                         "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
