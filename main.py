@@ -730,7 +730,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                     ),
                     cls=(
                         "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
                 Button(
@@ -849,7 +849,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                     ),
                     cls=(
                         "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
                 Button(
@@ -1132,7 +1132,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                     ),
                     cls=(
                         "flex-1 min-w-0 border rounded p-2 border-slate-300 bg-white text-slate-900 "
-                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 mb-1"
+                        "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                     ),
                 ),
                 Button(
@@ -1212,12 +1212,11 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             Div(
                                 Label("Category", cls="font-medium"),
                                 A(
-                                    "Manage categories",
+                                    "Manage categories ›",
                                     href="/categories",
                                     cls=(
-                                        "inline-flex items-center justify-center h-8 px-3 "
-                                        "bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 "
-                                        "dark:hover:bg-slate-600 dark:text-slate-100 rounded text-sm"
+                                        "inline-flex items-center text-slate-600 hover:text-slate-700 "
+                                        "dark:text-slate-400 dark:hover:text-slate-300 text-sm no-underline"
                                     ),
                                 ),
                                 cls="flex items-center justify-between"
