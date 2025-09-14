@@ -1423,6 +1423,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                             cls="mt-2 leading-relaxed text-[0.95rem]",
                             **{"data-md": "1"}
                         ),
+                        Div(cls="mt-4 border-t border-slate-200 dark:border-slate-500"),
                         Div(
                             A(
                                 "Open PDF",
@@ -1462,7 +1463,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         type="submit",
                         formaction="/fetch",
                         formmethod="post",
-                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm",
+                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm mt-4",
                     ),
                     ),
                 ),
@@ -1935,6 +1936,7 @@ async def regenerate(
             cls="mt-2 leading-relaxed text-[0.95rem]",
             **{"data-md": "1"}
         ),
+        Div(cls="mt-4 border-t border-slate-200 dark:border-slate-500"),
         Div(
             A(
                 "Open PDF",
