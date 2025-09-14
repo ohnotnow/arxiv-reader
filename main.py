@@ -1873,17 +1873,18 @@ if __name__ == "__main__":
 @rt("/regenerate")
 async def regenerate(
     arxiv_id: str,
+    request: Request | None = None,
     summary_style: str = "",
     verbosity: str = "medium",
     reasoning: str = "medium",
-    request: Request,
     htmx: HtmxHeaders | None = None,
 ):
     # Overwrite the cached summary for a single paper using the current style
     has_hx_header = False
     try:
-        hx = request.headers.get("hx-request") or request.headers.get("HX-Request")
-        has_hx_header = (hx or "").lower() == "true"
+        if request is not None:
+            hx = request.headers.get("hx-request") or request.headers.get("HX-Request")
+            has_hx_header = (hx or "").lower() == "true"
     except Exception:
         has_hx_header = False
     is_htmx = has_hx_header or (htmx is not None)
