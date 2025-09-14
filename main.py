@@ -639,7 +639,7 @@ def paper_row(item: Dict[str, Any]) -> Any:
 
 
 @rt("/")
-def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None):
+def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None, verbosity: str | None = None, reasoning: str | None = None):
     state = _load_state()
     prefs = _get_prefs(state)
     # User categories list (ordered); build display mapping
@@ -661,6 +661,8 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     default_use_emb = (use_embeddings if use_embeddings is not None else prefs.get("use_embeddings", "on"))
     default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 50)))
     interest_value = interest if interest is not None else prefs.get("interest", "")
+    default_verbosity = verbosity or prefs.get("verbosity", "medium")
+    default_reasoning = reasoning or prefs.get("reasoning", "medium")
 
     # Build recent history suggestions
     history = _get_history(state)
@@ -792,9 +794,9 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Div(
                                         Label("Verbosity", cls="text-sm font-medium mb-1"),
                                         Select(
-                                            Option("Low", value="low"),
-                                            Option("Medium", value="medium", selected=True),
-                                            Option("High", value="high"),
+                                            Option("Low", value="low", selected=(default_verbosity == "low")),
+                                            Option("Medium", value="medium", selected=(default_verbosity == "medium")),
+                                            Option("High", value="high", selected=(default_verbosity == "high")),
                                             name="verbosity",
                                             cls=(
                                                 "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
@@ -806,10 +808,10 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Div(
                                         Label("Reasoning", cls="text-sm font-medium mb-1"),
                                         Select(
-                                            Option("Minimal", value="minimal"),
-                                            Option("Low", value="low"),
-                                            Option("Medium", value="medium", selected=True),
-                                            Option("High", value="high"),
+                                            Option("Minimal", value="minimal", selected=(default_reasoning == "minimal")),
+                                            Option("Low", value="low", selected=(default_reasoning == "low")),
+                                            Option("Medium", value="medium", selected=(default_reasoning == "medium")),
+                                            Option("High", value="high", selected=(default_reasoning == "high")),
                                             name="reasoning",
                                             cls=(
                                                 "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
@@ -886,6 +888,8 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
             "use_embeddings": ("off" if use_embeddings == "off" else "on"),
             "top_k": int(top_k or "50"),
             "summary_style": summary_style,
+            "verbosity": verbosity,
+            "reasoning": reasoning,
         }
     )
     _set_prefs(state, prefs)
