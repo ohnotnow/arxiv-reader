@@ -529,13 +529,16 @@ dompurify_js = Script(src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.
 markdown_script = Script(
     """
     ;(function(){
-      function renderMarkdown(root){
+      function renderMarkdown(root, force){
+        try { console.log('[MD] renderMarkdown for', root); } catch(_e){}
         if(!window.marked || !window.DOMPurify) return;
         try { window.marked.setOptions({ breaks: true, gfm: true }); } catch(e){}
         var nodes = (root || document).querySelectorAll('[data-md]');
+        try { console.log('[MD] nodes:', nodes.length, 'force=', !!force); } catch(_e){}
+        try { console.log('[MD] nodes:', nodes.length); } catch(_e){}
         for (var i=0; i<nodes.length; i++){
           var el = nodes[i];
-          if (el.dataset.mdRendered === '1') continue;
+          if (el.dataset.mdRendered === '1' && !force) continue;
           var raw = el.textContent || '';
           var html = window.marked.parse(raw);
           el.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
@@ -545,8 +548,21 @@ markdown_script = Script(
           for (var j=0; j<links.length; j++){ links[j].target = '_blank'; links[j].rel = 'noopener noreferrer'; }
         }
       }
-      document.addEventListener('DOMContentLoaded', function(){ renderMarkdown(document); });
-      document.body && document.body.addEventListener('htmx:afterSwap', function(e){ renderMarkdown(e.target || document); });
+      try { window.__renderMarkdown = renderMarkdown; } catch(_e){}
+      document.addEventListener('DOMContentLoaded', function(){
+        try { console.log('[MD] DOMContentLoaded'); } catch(_e){}
+        renderMarkdown(document, false);
+      });
+      document.addEventListener('htmx:afterSwap', function(e){
+        try { console.log('[MD] htmx:afterSwap'); } catch(_e){}
+        var root = (e.detail && e.detail.target) || e.target || document;
+        renderMarkdown(root, true);
+      });
+      document.addEventListener('htmx:afterSettle', function(e){
+        try { console.log('[MD] htmx:afterSettle'); } catch(_e){}
+        var root = (e.detail && e.detail.target) || e.target || document;
+        renderMarkdown(root, true);
+      });
     })();
     """
 )
@@ -1362,7 +1378,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         "console.log('[DEBUG] Using fetch fallback');"
                         "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
                         "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
-                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
+                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
                         "console.log('[DEBUG] htmx should handle this click');"
@@ -1920,7 +1936,7 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
                         "console.log('[DEBUG] Using fetch fallback in regenerate route');"
                         "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
                         "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
-                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
+                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
                         "console.log('[DEBUG] htmx should handle this click in regenerate route');"
@@ -1952,6 +1968,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
         ),
             cls="mt-3 flex justify-between items-center gap-3"
         ),
+        # Ensure markdown render runs even if htmx events are missed
+        Script(f"try{{ window.__renderMarkdown && window.__renderMarkdown(document.getElementById('{sum_id}')); }}catch(_e){{}}"),
         id=sum_id,
     )
     if htmx:
