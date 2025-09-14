@@ -457,7 +457,6 @@ def openai_summarize(text: str, style: str) -> str:
                     "content": f"Summarize the following paper for this audience: '{style}'.\n\nReturn 6-10 bullet points covering: goal, method, data, key results, limitations, and why it matters.\n\nText begins:\n{snippet}",
                 },
             ],
-            max_output_tokens=800,
         )
         # Responses API returns output in a .output_text convenience property in some SDKs;
         # here we extract from choices[0].message.content if needed.
@@ -1203,14 +1202,20 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 "Regenerate summary",
                 type="button",
                 onclick=(
+                    "console.log('[DEBUG] Regenerate clicked for', this.dataset.arxivId);"
+                    "console.log('[DEBUG] htmx available?', typeof window.htmx !== 'undefined');"
+                    "console.log('[DEBUG] Button attributes:', this.attributes);"
                     "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
                     "setTimeout(()=>{ this.disabled=true; }, 10);"
                     # Fallback if htmx is unavailable
                     "if(!window.htmx){"
+                        "console.log('[DEBUG] Using fetch fallback');"
                         "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
                         "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
-                        ".catch(err=>{ console.error(err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                        ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                    "} else {"
+                        "console.log('[DEBUG] htmx should handle this click');"
                     "}"
                 ),
                 cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
@@ -1223,6 +1228,9 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         "arxiv_id": arxid,
                         "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
                     }),
+                    "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired')",
+                    "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired')",
+                    "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired', event.detail)",
                 },
                 **{
                     "data-arxiv-id": arxid,
@@ -1676,6 +1684,7 @@ if __name__ == "__main__":
 @rt("/regenerate")
 async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders | None = None):
     # Overwrite the cached summary for a single paper using the current style
+    print(f"[DEBUG] /regenerate called with arxiv_id={arxiv_id}, has_htmx={htmx is not None}", flush=True)
     cache_dir = _paper_cache_dir(arxiv_id)
     pdf_path = cache_dir / "original.pdf"
     txt_path = cache_dir / "text.txt"
@@ -1716,13 +1725,18 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
             "Regenerate summary",
             type="button",
             onclick=(
+                "console.log('[DEBUG] Regenerate clicked in regenerate route for', this.dataset.arxivId);"
+                "console.log('[DEBUG] htmx available?', typeof window.htmx !== 'undefined');"
                 "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
                 "setTimeout(()=>{ this.disabled=true; }, 10);"
                 "if(!window.htmx){"
+                    "console.log('[DEBUG] Using fetch fallback in regenerate route');"
                     "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
                     "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
                     ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
-                    ".catch(err=>{ console.error(err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                    ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                "} else {"
+                    "console.log('[DEBUG] htmx should handle this click in regenerate route');"
                 "}"
             ),
             cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
@@ -1735,6 +1749,9 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
                     "arxiv_id": arxiv_id,
                     "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
                 }),
+                "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired in regenerate route')",
+                "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired in regenerate route')",
+                "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired in regenerate route', event.detail)",
             },
             **{
                 "data-arxiv-id": arxiv_id,
