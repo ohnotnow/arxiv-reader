@@ -1279,14 +1279,14 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Span("▼", cls="inline-block transition-transform duration-200", id="settings_chevron"),
                                     type="button",
                                     onclick=(
-                                        "const panel=this.nextElementSibling; "
+                                    "const panel=document.getElementById('more_settings_panel'); if(!panel) return; "
                                     "const chevron=this.querySelector('#settings_chevron'); "
                                     "const textSpan=this.querySelector('span:first-child'); "
                                     "const isHidden=panel.style.display==='none'; "
                                     "panel.style.display=isHidden?'block':'none'; "
                                     "textSpan.textContent=isHidden?'Less settings ':'More settings '; "
                                     "chevron.style.transform=isHidden?'rotate(180deg)':'rotate(0deg)';"
-                                ),
+                                    ),
                                     cls=(
                                         "text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 "
                                         "cursor-pointer text-sm font-normal bg-transparent border-none p-0 mb-2"
@@ -1348,7 +1348,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Label("Use semantic filter", cls="text-sm text-slate-700 dark:text-slate-300"),
                                     cls="flex items-center"
                                 ),
-                                style="display:none",
+                                id="more_settings_panel", style="display:none",
                                 cls="border-t pt-3 mt-2"
                             ),
                             cls="flex flex-col"
