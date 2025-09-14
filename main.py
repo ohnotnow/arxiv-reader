@@ -263,6 +263,20 @@ def _slugify(name: str) -> str:
     return name[:180]
 
 
+def _css_id(name: str) -> str:
+    """Return a CSS-selector-safe id segment derived from ``name``.
+
+    Replaces whitespace with dashes and collapses any non [a-zA-Z0-9_\-]
+    characters into single dashes so it can be safely used with
+    document.querySelector without escaping (e.g., dots in arXiv IDs).
+    """
+    s = (name or "").strip()
+    s = re.sub(r"\s+", "-", s)
+    s = re.sub(r"[^a-zA-Z0-9_-]", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s[:180]
+
+
 def _pdf_text(path: Path) -> str:
     try:
         with path.open("rb") as f:
@@ -1184,22 +1198,37 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             )
             pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
 
-            sum_id = f"sum-{_slugify(arxid)}"
-            regen_form = Form(
-                Input(type="hidden", name="arxiv_id", value=arxid),
-                Textarea(summary_style or "", name="summary_style", cls="hidden"),
-                Button(
-                    "Regenerate summary",
-                    type="submit",
-                    formaction="/regenerate",
-                    formmethod="post",
-                    onclick=(
-                        "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
-                        "setTimeout(()=>{ this.disabled=true; }, 10);"
-                    ),
-                    cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+            sum_id = f"sum-{_css_id(arxid)}"
+            regen_btn = Button(
+                "Regenerate summary",
+                type="button",
+                onclick=(
+                    "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                    "setTimeout(()=>{ this.disabled=true; }, 10);"
+                    # Fallback if htmx is unavailable
+                    "if(!window.htmx){"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
+                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
+                        ".catch(err=>{ console.error(err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                    "}"
                 ),
-                **{"hx-post": "/regenerate", "hx-target": f"#{sum_id}", "hx-swap": "outerHTML"},
+                cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+                **{
+                    "hx-post": "/regenerate",
+                    "hx-target": f"#{sum_id}",
+                    "hx-swap": "outerHTML",
+                    "hx-trigger": "click",
+                    "hx-vals": json.dumps({
+                        "arxiv_id": arxid,
+                        "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                    }),
+                },
+                **{
+                    "data-arxiv-id": arxid,
+                    "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
+                    "data-target": f"#{sum_id}",
+                },
             )
 
             results_ui.append(
@@ -1221,7 +1250,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                             ),
                             cls="mt-3"
                         ),
-                        regen_form,
+                        regen_btn,
                         id=sum_id,
                     ),
                     cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
@@ -1670,7 +1699,7 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
     sum_path.write_text(summary)
 
     # If htmx request, return the updated summary block for in-place swap
-    sum_id = f"sum-{_slugify(arxiv_id)}"
+    sum_id = f"sum-{_css_id(arxiv_id)}"
     pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
     block = Div(
         Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
@@ -1683,19 +1712,35 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
             ),
             cls="mt-3"
         ),
-        Form(
-            Input(type="hidden", name="arxiv_id", value=arxiv_id),
-            Textarea(summary_style or "", name="summary_style", cls="hidden"),
-            Button(
-                "Regenerate summary",
-                type="submit",
-                onclick=(
-                    "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
-                    "setTimeout(()=>{ this.disabled=true; }, 10);"
-                ),
-                cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+        Button(
+            "Regenerate summary",
+            type="button",
+            onclick=(
+                "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                "setTimeout(()=>{ this.disabled=true; }, 10);"
+                "if(!window.htmx){"
+                    "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
+                    "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
+                    ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
+                    ".catch(err=>{ console.error(err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                "}"
             ),
-            **{"hx-post": "/regenerate", "hx-target": f"#{sum_id}", "hx-swap": "outerHTML"},
+            cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+            **{
+                "hx-post": "/regenerate",
+                "hx-target": f"#{sum_id}",
+                "hx-swap": "outerHTML",
+                "hx-trigger": "click",
+                "hx-vals": json.dumps({
+                    "arxiv_id": arxiv_id,
+                    "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                }),
+            },
+            **{
+                "data-arxiv-id": arxiv_id,
+                "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
+                "data-target": f"#{sum_id}",
+            },
         ),
         id=sum_id,
     )

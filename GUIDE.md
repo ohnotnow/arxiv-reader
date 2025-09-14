@@ -1,91 +1,54 @@
-# Debug-First Collaboration Guide
+# Working Together, Simply
 
-This guide captures how we work together: debug first, change last, keep fixes small and evidence‑driven, and communicate clearly. It applies across stacks (FastHTML/htmx, Flask/FastAPI, Laravel/Livewire, Go, etc.).
+Why this exists
+- So we build and fix things together without talking past each other.
+- So we keep it simple, move steadily, and stay kind.
 
-## Principles
-- Debug first, change last — no edits until a cause is proven.
-- Evidence over assumption — form a hypothesis, test quickly, then act.
-- Small, reversible patches — avoid new deps or architectural shifts.
-- Keep scope tight to the failing path.
-- Ask questions, collaborate, narrate reasoning. If guessing, say so and stop.
+How we start
+- What are we doing today? Say it plainly.
+- What does “done” look like? One or two examples are enough.
+- Anything out of scope right now? Call it out.
+- Any constraints? Time, risk, approvals, environment.
 
-## Working Agreement
-- Ask for quick, specific checks before proposing code changes.
-- Share acceptance criteria (what success looks like) before coding.
-- Propose 1–2 minimal options; get confirmation before adding complexity.
-- Remove temporary logs after verification.
+Doing the work (together)
+- Open the code where it lives. Read it for a minute together.
+- Can we see it? Run something small that shows the thing we care about.
+- Take the smallest next step that teaches us something.
+- If it didn’t teach us anything, undo it and try a different small step.
 
-## Acceptance Criteria (Template)
-- Trigger: “When I click <control> …”
-- Effect: “… sends 1 request to <route> with params <…> …”
-- UI: “… only updates region <selector> … no full reload.”
-- Errors: “No console errors; server logs show route hit and params.”
+Features (new things)
+- Pick the smallest slice that’s still useful.
+- Build it end‑to‑end, even if rough. Then tidy.
+- Prefer a setting or a simple change over adding lots of code.
 
-## Client-Side Debug Checklist (htmx/FastHTML friendly)
-1) Reproduce with DevTools open (Preserve log, Disable cache).
-2) Verify framework presence and version:
-   - `window.htmx` (object?) and `htmx.version` if available.
-3) Enable logs and click:
-   - `window.htmx.logAll()` → expect trigger/config logs.
-4) Validate target selector:
-   - Copy `hx-target`, run `document.querySelector('<hx-target>')` — must resolve.
-   - If not, fix selector/ID (see “Selector/ID Hygiene”).
-5) Force processing if needed:
-   - `htmx.process(document.body)` then retry.
-6) Minimal trigger sanity in Elements panel:
-   - Keep only `hx-post`, `hx-target`, `hx-swap`; remove extras; click again.
-7) Manual request to isolate attributes vs route:
-   - `htmx.ajax('POST','/route',{ target:'#id', values:{...} })`
-8) Watch console for errors (CSP, JS exceptions) and Network tab for requests.
+Bugs (broken things)
+- Make it happen on purpose. If we can’t, say so and agree what to try next.
+- Look near where it fails. Add one small print/log/check.
+- Try the smallest fix first. If it works, stop.
 
-## Server-Side Debug Checklist
-- Route method matches (GET vs POST) and is reachable.
-- Log route entry and parsed params at the top.
-- Verify side effects (e.g., file writes) and return value.
-- For fragment swaps: returned wrapper id matches `hx-target` element id.
-- Return explicit 4xx/5xx with helpful text if inputs missing.
+Making changes
+- One concern per change. Keep diffs tidy and readable.
+- No new libraries or big design moves without a quick “are we sure?” chat.
+- Have a simple way back if it doesn’t pan out.
 
-## Selector/ID Hygiene (HTML/CSS)
-- Make DOM ids CSS‑selector safe: only `[a-zA-Z0-9_-]`.
-- Never embed raw ids containing dots/spaces directly into element ids.
-- Sanity check: `document.querySelector('#the-id')` must succeed unescaped.
-- Avoid nested forms; prefer a single form or non‑form triggers.
-- Keep triggers simple first: `hx-post`, `hx-target`, `hx-swap`; add extras later.
+Talking while we work
+- Before we do something: “I’m going to try X because Y.”
+- After we do it: “It did Z; next I’ll try Q.”
+- If you’re unsure, say so. If I’m guessing, I’ll say so.
 
-## Version Discipline (htmx and friends)
-- Pin to a single known version; don’t mix 1.x vs 2.x behaviors.
-- If using a CDN, pin the exact version; vendor locally only if CSP/CDN issues are proven.
+When to pause and ask
+- The next step adds noticeable complexity.
+- We can’t make progress after a couple of small tries.
+- We don’t really understand the requirement or the code yet.
+- It feels like we’re fixing symptoms, not the cause.
 
-## Make Changes (only after proven cause)
-- Implement one small, reversible patch tied to the finding.
-- Explain the change and how it addresses the root cause.
-- Remove temporary diagnostics; keep code tidy.
-- Provide a rollback plan if needed.
+How we finish
+- Show it doing what we said “done” means.
+- Remove any temporary debug noise.
+- Leave a short note: what was wrong (or what we built), what changed, how we checked.
 
-## Validate Fix
-- Confirm acceptance criteria: request count, params, UI swap, no errors.
-- Check regression risk in adjacent flows.
-- Capture a quick note/screenshot for future reference.
-
-## What I’ll Ask You For (fast collaboration)
-- Console output of `window.htmx.logAll()` interaction.
-- The control’s outerHTML and exact `hx-target` value.
-- Result of `document.querySelector('<hx-target>')`.
-- Any server log lines on route entry.
-- Any environment quirks (CSP, proxies, blocked CDNs).
-
-## Minimal Options First (when proposing fixes)
-- Option A: smallest client‑side tweak (e.g., CSS‑safe id, simple htmx trigger).
-- Option B: smallest server‑side tweak (e.g., accept missing param, stable GET fallback).
-- Avoid adding deps, fallbacks, or new endpoints unless necessary.
-
-## Notes for Other Stacks
-- React/Vue: validate component props/state, event binding, network call; use React DevTools/Vue devtools.
-- Laravel/Livewire: check component events, wire:model bindings, network requests, CSRF tokens.
-- Go/Net/http: method routing, handler logs, response codes/content type, template regions.
-- CLI/tools: reproduce with verbose flags; isolate inputs/outputs in temp dirs.
-
-## Keep It Human
-- If something isn’t clear, ask. If I’m guessing, I’ll say so.
-- Pause for your direction before expanding scope.
-- We value speed through clarity, not code volume.
+Defaults we live by
+- Simple over clever.
+- Clarity over speed.
+- Ask before adding risk.
+- Be kind; assume good intent.
