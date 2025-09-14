@@ -79,11 +79,10 @@ Quickstart (uv)
 Notes
 -----
 
-- Downloads and outputs are saved under `papers/<YYYYmmdd-HHMMSS>/`.
+- Downloads and outputs are saved under `papers/<arxiv-id>/`.
 - Last-run timestamps per category are saved in `state.json`.
 - Tailwind is loaded via CDN; no build step needed.
 - If you prefer not to call OpenAI, leave `OPENAI_API_KEY` unset; the app will skip summaries.
-- This project prefers `uv` for dependency management and running.
 
 Category cache (optional)
 -------------------------
