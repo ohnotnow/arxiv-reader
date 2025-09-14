@@ -455,13 +455,21 @@ def openai_summarize(
     snippet = text
     if len(snippet) > 100_000:
         snippet = snippet[:100_000]
-    # Build user prompt with conditional Markdown formatting hint
-    base_instructions = (
-        "Summarize the following paper for this audience: "
-        f"'{style}'.\n\n"
-        "Return 6-10 bullet points covering: goal, method, data, key results, "
-        "limitations, and why it matters."
-    )
+    # Build user prompt: if a style is provided, use it; otherwise use a
+    # sensible structured default. Avoid imposing structure when the user
+    # gave a style, per product guidance.
+    style_clean = (style or "").strip()
+    if style_clean:
+        base_instructions = (
+            "Summarize the following paper for this audience: "
+            f"'{style_clean}'."
+        )
+    else:
+        base_instructions = (
+            "Summarize the following paper.\n\n"
+            "Return 6-10 bullet points covering: goal, method, data, key results, "
+            "limitations, and why it matters."
+        )
 
     # Title handling: omit title to avoid duplication in UI
     base_instructions += (
@@ -470,7 +478,7 @@ def openai_summarize(
     )
 
     # Only append markdown guidance if the user hasn't already specified it
-    if "markdown" not in (style or "").lower():
+    if "markdown" not in (style_clean or "").lower():
         base_instructions += (
             "\n\nFormat the response as clear, well-structured Markdown. "
             "Use section headings and bullet lists where helpful; bold key terms. "
@@ -481,7 +489,7 @@ def openai_summarize(
     base_instructions += f"\n\nText begins:\n{snippet}"
 
     # Build developer instructions to re-enable Markdown for reasoning models
-    wants_markdown = "markdown" in (style or "").lower()
+    wants_markdown = "markdown" in (style_clean or "").lower()
     instructions_lines = [
         "Formatting re-enabled",
     ]
