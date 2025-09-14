@@ -1215,7 +1215,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     "Manage categories",
                                     href="/categories",
                                     cls=(
-                                        "inline-flex items-center justify-center h-10 px-3 "
+                                        "inline-flex items-center justify-center h-8 px-3 "
                                         "bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 "
                                         "dark:hover:bg-slate-600 dark:text-slate-100 rounded text-sm"
                                     ),
@@ -1273,12 +1273,13 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             ),
                         ),
                         Div(
-                            Button(
-                                Span("More settings ", cls=""),
-                                Span("▼", cls="inline-block transition-transform duration-200", id="settings_chevron"),
-                                type="button",
-                                onclick=(
-                                    "const panel=this.nextElementSibling; "
+                            Div(
+                                Button(
+                                    Span("More settings ", cls=""),
+                                    Span("▼", cls="inline-block transition-transform duration-200", id="settings_chevron"),
+                                    type="button",
+                                    onclick=(
+                                        "const panel=this.nextElementSibling; "
                                     "const chevron=this.querySelector('#settings_chevron'); "
                                     "const textSpan=this.querySelector('span:first-child'); "
                                     "const isHidden=panel.style.display==='none'; "
@@ -1286,7 +1287,12 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     "textSpan.textContent=isHidden?'Less settings ':'More settings '; "
                                     "chevron.style.transform=isHidden?'rotate(180deg)':'rotate(0deg)';"
                                 ),
-                                cls="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer text-sm font-normal bg-transparent border-none p-0 mb-2"
+                                    cls=(
+                                        "text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 "
+                                        "cursor-pointer text-sm font-normal bg-transparent border-none p-0 mb-2"
+                                    )
+                                ),
+                                cls="flex justify-end"
                             ),
                             Div(
                                 Div(
@@ -2027,9 +2033,9 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                             cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10",
                         ),
                         cls="grid grid-cols-2 gap-3 items-center mt-4"
-                    ),
-                    cls=""
-                ),
+                            ),
+                            cls=""
+                        ),
                 Div(
                     P(
                         f"Debug: previous-days={days} top_k={k} interest='{interest}'",
