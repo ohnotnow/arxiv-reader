@@ -1,13 +1,47 @@
 arXiv Helper (FastHTML)
 =======================
 
-Simple web app to:
+A smart arXiv paper discovery and summarization tool that helps researchers stay on top of the latest papers in their field.
 
-- Pick an arXiv category and optional interest filter
-- Fetch papers since your last run (defaults to 1 week on first run)
-- Review titles/abstracts and select papers
-- Download PDFs locally and extract text
-- Summarize each paper with OpenAI `gpt-5-mini`
+## Features
+
+### Core Functionality
+
+- **Smart Paper Discovery**: Fetch latest papers from any arXiv category since your last check
+- **Semantic Filtering**: Find relevant papers using AI-powered similarity search, not just keywords
+- **Batch Processing**: Select multiple papers and download/summarize them all at once
+- **AI Summaries**: Generate customizable summaries using OpenAI's latest models
+- **Local Storage**: All PDFs, extracted text, and summaries saved locally for offline access
+- **Session Memory**: Automatically tracks what you've already seen to show only new papers
+
+### Advanced Features
+
+- **Customizable AI Settings**:
+  - **Verbosity Control**: Choose summary length (Low/Medium/High) - from bullet points to detailed analysis
+  - **Reasoning Depth**: Control analysis thoroughness (Minimal/Low/Medium/High) - affects both quality and generation time
+  - These settings can be adjusted per-session and apply to both new summaries and regeneration
+
+- **Semantic Interest Filtering**:
+  - Uses ChromaDB vector embeddings for intelligent paper matching
+  - Finds conceptually related papers even without exact keyword matches
+  - Example: Searching for "machine learning" also finds papers about "deep learning", "neural networks", etc.
+  - Embeddings cached locally in `.chroma/` for fast subsequent searches
+
+- **Smart Regeneration**:
+  - Regenerate any summary with different verbosity/reasoning settings without re-downloading
+  - Test different summary styles to find what works best for each paper
+  - Original PDFs and extracted text are preserved
+
+- **Historical Browser**:
+  - Browse all previously downloaded papers through the `/previous` route
+  - Filter by date range to revisit papers from specific time periods
+  - Re-apply interest filters to past downloads
+  - Regenerate old summaries with updated AI settings
+
+- **Persistent Preferences**:
+  - All settings (summary style, verbosity, reasoning, top K results) saved between sessions
+  - Per-category memory: each arXiv category maintains its own preferences
+  - Last-fetch timestamps ensure you never miss papers or see duplicates
 
 ### Screenshots
 
@@ -41,14 +75,6 @@ Quickstart (uv)
 
    - `uv run uvicorn main:app --reload --port 8000`
    - Then open http://127.0.0.1:8000 in your browser.
-
-Managing dependencies (uv)
---------------------------
-
-- Add a dependency: `uv add <package>`
-- Remove a dependency: `uv remove <package>`
-- Update lockfile (optional): `uv lock` (creates/updates `uv.lock`)
-- Re-sync env from lock: `uv sync`
 
 Notes
 -----

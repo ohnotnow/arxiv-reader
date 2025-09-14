@@ -406,7 +406,7 @@ def _ensure_cached_embeddings(coll: chromadb.api.models.Collection.CollectionAPI
         )
 
 
-def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 50, category: Optional[str] = None) -> List[Dict[str, Any]]:
+def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 10, category: Optional[str] = None) -> List[Dict[str, Any]]:
     if not items or not interest.strip():
         return items
 
@@ -435,7 +435,7 @@ def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 
     return out[:top_k]
 
 
-def openai_summarize(text: str, style: str) -> str:
+def openai_summarize(text: str, style: str, verbosity: str = "medium", reasoning: str = "medium") -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return "[OPENAI_API_KEY is not set; skipping summarization.]"
@@ -457,6 +457,8 @@ def openai_summarize(text: str, style: str) -> str:
                     "content": f"Summarize the following paper for this audience: '{style}'.\n\nReturn 6-10 bullet points covering: goal, method, data, key results, limitations, and why it matters.\n\nText begins:\n{snippet}",
                 },
             ],
+            reasoning={"effort": reasoning},
+            text={"verbosity": verbosity},
         )
         # Responses API returns output in a .output_text convenience property in some SDKs;
         # here we extract from choices[0].message.content if needed.
@@ -659,7 +661,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         )
     )
     default_use_emb = (use_embeddings if use_embeddings is not None else prefs.get("use_embeddings", "on"))
-    default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 50)))
+    default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 10)))
     interest_value = interest if interest is not None else prefs.get("interest", "")
     default_verbosity = verbosity or prefs.get("verbosity", "medium")
     default_reasoning = reasoning or prefs.get("reasoning", "medium")
@@ -871,7 +873,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 
 
 @rt("/fetch")
-async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "50", verbosity: str = "medium", reasoning: str = "medium"):
+async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "10", verbosity: str = "medium", reasoning: str = "medium"):
     state = _load_state()
     # Use session anchor (stable during app lifetime)
     since = _get_session_anchor(category)
@@ -886,7 +888,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
             "category": category,
             "interest": interest,
             "use_embeddings": ("off" if use_embeddings == "off" else "on"),
-            "top_k": int(top_k or "50"),
+            "top_k": int(top_k or "10"),
             "summary_style": summary_style,
             "verbosity": verbosity,
             "reasoning": reasoning,
@@ -907,7 +909,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     narrowing_error = None
     try:
         if (use_embeddings != "off") and interest:
-            k = max(5, min(200, int(top_k or "50")))
+            k = max(5, min(200, int(top_k or "10")))
             # Offload Chroma ops to a thread to keep loop responsive
             narrowed_items = await asyncio.to_thread(narrow_with_chroma, items, interest, k, category)
     except Exception as e:
@@ -935,7 +937,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     if not results:
         # Automatic fallback: show recent cached matches (last 7 days) with current filters
         try:
-            k = max(5, min(200, int(top_k or "50")))
+            k = max(5, min(200, int(top_k or "10")))
         except Exception:
             k = 50
         fallback_days = 7
@@ -1186,7 +1188,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
     selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
     # Preserve settings to reconstruct results
     use_embeddings = form.get("use_embeddings") or "on"  # type: ignore[attr-defined]
-    top_k_val = form.get("top_k") or "50"  # type: ignore[attr-defined]
+    top_k_val = form.get("top_k") or "10"  # type: ignore[attr-defined]
     if not selected_ids:
         return Html(
             Head(Title("No Selection"), tailwind, htmx),
@@ -1244,6 +1246,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     openai_summarize,
                     text,
                     summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                    verbosity,
+                    reasoning,
                 )
                 sum_path.write_text(summary)
             else:
@@ -1277,8 +1281,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     # Fallback if htmx is unavailable
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -1294,6 +1298,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     "hx-vals": json.dumps({
                         "arxiv_id": arxid,
                         "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                        "verbosity": verbosity,
+                        "reasoning": reasoning,
                     }),
                     "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired')",
                     "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired')",
@@ -1302,6 +1308,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 **{
                     "data-arxiv-id": arxid,
                     "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
+                    "data-verbosity": verbosity,
+                    "data-reasoning": reasoning,
                     "data-target": f"#{sum_id}",
                 },
             )
@@ -1369,7 +1377,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
 
 
 @rt("/previous")
-async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "50", previous_days: str = "7", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
+async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "10", previous_days: str = "7", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
     # Look back over past N days in the Chroma cache and return top-k matches
     k = max(5, min(200, int(top_k or "50")))
     days = max(1, min(60, int(previous_days or "7")))
@@ -1764,7 +1772,7 @@ if __name__ == "__main__":
 
 
 @rt("/regenerate")
-async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders | None = None):
+async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium", htmx: HtmxHeaders | None = None):
     # Overwrite the cached summary for a single paper using the current style
     print(f"[DEBUG] /regenerate called with arxiv_id={arxiv_id}, has_htmx={htmx is not None}", flush=True)
     cache_dir = _paper_cache_dir(arxiv_id)
@@ -1786,6 +1794,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
         openai_summarize,
         text,
         summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+        verbosity,
+        reasoning,
     )
     sum_path.write_text(summary)
 
@@ -1811,8 +1821,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
                     "setTimeout(()=>{ this.disabled=true; }, 10);"
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback in regenerate route');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -1828,6 +1838,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
                 "hx-vals": json.dumps({
                     "arxiv_id": arxiv_id,
                     "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                    "verbosity": verbosity,
+                    "reasoning": reasoning,
                 }),
                 "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired in regenerate route')",
                 "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired in regenerate route')",
@@ -1836,6 +1848,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
             **{
                 "data-arxiv-id": arxiv_id,
                 "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
+                "data-verbosity": verbosity,
+                "data-reasoning": reasoning,
                 "data-target": f"#{sum_id}",
             },
         ),
