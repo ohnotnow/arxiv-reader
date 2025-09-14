@@ -737,7 +737,8 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                     "Delete",
                     type="button",
                     cls=(
-                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "ml-2 px-3 py-2 rounded bg-slate-500 text-white text-sm hover:bg-slate-600 "
+                        "dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100 "
                         "disabled:opacity-50 disabled:cursor-not-allowed"
                     ),
                     **{
@@ -855,7 +856,8 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                     "Delete",
                     type="button",
                     cls=(
-                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "ml-2 px-3 py-2 rounded bg-slate-500 text-white text-sm hover:bg-slate-600 "
+                        "dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100 "
                         "disabled:opacity-50 disabled:cursor-not-allowed"
                     ),
                     **{
@@ -1137,7 +1139,8 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                     "Delete",
                     type="button",
                     cls=(
-                        "ml-2 h-10 px-3 rounded bg-red-600 text-white text-sm hover:bg-red-700 "
+                        "ml-2 px-3 py-2 rounded bg-slate-500 text-white text-sm hover:bg-slate-600 "
+                        "dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100 "
                         "disabled:opacity-50 disabled:cursor-not-allowed"
                     ),
                     **{
@@ -1266,7 +1269,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                             render_styles_section(current_title, default_style),
                             cls=(
                                 "p-3 rounded-lg border border-slate-200 bg-slate-50 "
-                                "dark:bg-slate-800/40 dark:border-slate-600"
+                                "dark:bg-slate-600/40 dark:border-slate-600"
                             ),
                         ),
                         Div(
