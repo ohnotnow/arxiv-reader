@@ -435,7 +435,18 @@ def narrow_with_chroma(items: List[Dict[str, Any]], interest: str, top_k: int = 
     return out[:top_k]
 
 
-def openai_summarize(text: str, style: str, verbosity: str = "medium", reasoning: str = "medium") -> str:
+def openai_summarize(
+    text: str,
+    style: str,
+    verbosity: str = "medium",
+    reasoning: str = "medium",
+    title: Optional[str] = None,
+) -> str:
+    """Summarize text via OpenAI with a user-provided style.
+
+    If the user style does not already mention 'markdown' (case-insensitive),
+    append a small instruction asking for clear, well-structured Markdown.
+    """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return "[OPENAI_API_KEY is not set; skipping summarization.]"
@@ -444,6 +455,44 @@ def openai_summarize(text: str, style: str, verbosity: str = "medium", reasoning
     snippet = text
     if len(snippet) > 100_000:
         snippet = snippet[:100_000]
+    # Build user prompt with conditional Markdown formatting hint
+    base_instructions = (
+        "Summarize the following paper for this audience: "
+        f"'{style}'.\n\n"
+        "Return 6-10 bullet points covering: goal, method, data, key results, "
+        "limitations, and why it matters."
+    )
+
+    # Title handling: omit title to avoid duplication in UI
+    base_instructions += (
+        "\n\nDo not include any title heading and do not repeat the paper title; "
+        "begin directly with the summary content."
+    )
+
+    # Only append markdown guidance if the user hasn't already specified it
+    if "markdown" not in (style or "").lower():
+        base_instructions += (
+            "\n\nFormat the response as clear, well-structured Markdown. "
+            "Use section headings and bullet lists where helpful; bold key terms. "
+            "Avoid HTML and preambles — return only the Markdown summary."
+        )
+
+    # Add the text snippet
+    base_instructions += f"\n\nText begins:\n{snippet}"
+
+    # Build developer instructions to re-enable Markdown for reasoning models
+    wants_markdown = "markdown" in (style or "").lower()
+    instructions_lines = [
+        "Formatting re-enabled",
+    ]
+    if not wants_markdown:
+        instructions_lines.append(
+            "Format the response as clear, well-structured Markdown. "
+            "Use section headings and bullet lists where helpful; bold key terms. "
+            "Avoid HTML and preambles — return only the Markdown summary."
+        )
+    dev_instructions = "\n".join(instructions_lines)
+
     try:
         resp = client.responses.create(
             model="gpt-5-mini",
@@ -454,9 +503,10 @@ def openai_summarize(text: str, style: str, verbosity: str = "medium", reasoning
                 },
                 {
                     "role": "user",
-                    "content": f"Summarize the following paper for this audience: '{style}'.\n\nReturn 6-10 bullet points covering: goal, method, data, key results, limitations, and why it matters.\n\nText begins:\n{snippet}",
+                    "content": base_instructions,
                 },
             ],
+            instructions=dev_instructions,
             reasoning={"effort": reasoning},
             text={"verbosity": verbosity},
         )
@@ -470,8 +520,36 @@ def openai_summarize(text: str, style: str, verbosity: str = "medium", reasoning
 
 # ---------- Web App (FastHTML) ----------
 
-tailwind = Script(src="https://cdn.tailwindcss.com")
+tailwind = Script(src="https://cdn.tailwindcss.com?plugins=typography")
 htmx = Script(src="https://unpkg.com/htmx.org@1.9.12")
+# Client-side Markdown rendering (UMD builds)
+marked_js = Script(src="https://cdnjs.cloudflare.com/ajax/libs/marked/16.2.1/lib/marked.umd.min.js")
+dompurify_js = Script(src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.6/purify.min.js")
+# Inline script to convert [data-md] blocks from plain text to sanitized HTML
+markdown_script = Script(
+    """
+    ;(function(){
+      function renderMarkdown(root){
+        if(!window.marked || !window.DOMPurify) return;
+        try { window.marked.setOptions({ breaks: true, gfm: true }); } catch(e){}
+        var nodes = (root || document).querySelectorAll('[data-md]');
+        for (var i=0; i<nodes.length; i++){
+          var el = nodes[i];
+          if (el.dataset.mdRendered === '1') continue;
+          var raw = el.textContent || '';
+          var html = window.marked.parse(raw);
+          el.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+          el.dataset.mdRendered = '1';
+          el.classList.add('prose','prose-slate','dark:prose-invert','max-w-none');
+          var links = el.querySelectorAll('a[href^="http"]');
+          for (var j=0; j<links.length; j++){ links[j].target = '_blank'; links[j].rel = 'noopener noreferrer'; }
+        }
+      }
+      document.addEventListener('DOMContentLoaded', function(){ renderMarkdown(document); });
+      document.body && document.body.addEventListener('htmx:afterSwap', function(e){ renderMarkdown(e.target || document); });
+    })();
+    """
+)
 
 app, rt = fast_app(hdrs=(tailwind, htmx), pico=False)
 
@@ -677,7 +755,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
         cat_last_checked[code] = _human(_get_session_anchor(code))
 
     return Html(
-        Head(Title("arXiv Helper"), tailwind, htmx),
+        Head(Title("arXiv Helper"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(
@@ -1045,7 +1123,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
             results = [Div("No new papers found for the chosen filters.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Html(
-        Head(Title("ArXiv Results"), tailwind, htmx),
+        Head(Title("ArXiv Results"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(
@@ -1191,7 +1269,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
     top_k_val = form.get("top_k") or "10"  # type: ignore[attr-defined]
     if not selected_ids:
         return Html(
-            Head(Title("No Selection"), tailwind, htmx),
+            Head(Title("No Selection"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
             Body(
                 Main(
                     Div(
@@ -1248,6 +1326,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
                     verbosity,
                     reasoning,
+                    title,
                 )
                 sum_path.write_text(summary)
             else:
@@ -1323,7 +1402,11 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                         cls="mb-2"
                     ),
                     Div(
-                        Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+                        Div(
+                            summary,
+                            cls="mt-2 leading-relaxed text-[0.95rem]",
+                            **{"data-md": "1"}
+                        ),
                         Div(
                             A(
                                 "Open PDF",
@@ -1343,7 +1426,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
             results_ui.append(Div(H3(f"{arxid}"), P(f"Error: {e}", cls="text-red-600"), cls="p-3 border rounded"))
 
     return Html(
-        Head(Title("Download + Summaries"), tailwind, htmx),
+        Head(Title("Download + Summaries"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(
@@ -1477,7 +1560,7 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
         results = [Div("No cached matches in the selected window.", cls="p-4 text-slate-600 dark:text-slate-300")]  # type: ignore[assignment]
 
     return Html(
-        Head(Title("arXiv Helper"), tailwind, htmx),
+        Head(Title("arXiv Helper"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(
@@ -1591,7 +1674,7 @@ def categories_page(error: str | None = None, saved: str | None = None, q: str |
     elif q and not cache:
         suggestions_ui = P("Category cache not available. Run the fetch script to enable search.", cls="text-xs text-slate-500 mt-2")
     return Html(
-        Head(Title("Manage Categories"), tailwind, htmx),
+        Head(Title("Manage Categories"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(
@@ -1789,6 +1872,15 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
     else:
         text = txt_path.read_text()
 
+    # Fetch title for accurate heading handling
+    title_val = None
+    try:
+        meta_client = arxiv.Client()
+        r = next(meta_client.results(arxiv.Search(id_list=[arxiv_id])))
+        title_val = (r.title or "").strip() or None
+    except Exception:
+        title_val = None
+
     # Regenerate unconditionally
     summary = await asyncio.to_thread(
         openai_summarize,
@@ -1796,6 +1888,7 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
         summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
         verbosity,
         reasoning,
+        title_val,
     )
     sum_path.write_text(summary)
 
@@ -1803,7 +1896,11 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
     sum_id = f"sum-{_css_id(arxiv_id)}"
     pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
     block = Div(
-        Div(summary, cls="mt-2 whitespace-pre-wrap leading-relaxed text-[0.95rem]"),
+        Div(
+            summary,
+            cls="mt-2 leading-relaxed text-[0.95rem]",
+            **{"data-md": "1"}
+        ),
         Div(
             A(
                 "Open PDF",
@@ -1861,7 +1958,7 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
         return block
     # Fallback: small page
     return Html(
-        Head(Title("Regenerated Summary"), tailwind, htmx),
+        Head(Title("Regenerated Summary"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
         Body(
             Main(
                 Div(block, cls="container mx-auto max-w-3xl p-4"),
