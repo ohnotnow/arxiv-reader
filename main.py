@@ -1871,9 +1871,26 @@ if __name__ == "__main__":
 
 
 @rt("/regenerate")
-async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium", htmx: HtmxHeaders | None = None):
+async def regenerate(
+    arxiv_id: str,
+    summary_style: str = "",
+    verbosity: str = "medium",
+    reasoning: str = "medium",
+    request: Request,
+    htmx: HtmxHeaders | None = None,
+):
     # Overwrite the cached summary for a single paper using the current style
-    print(f"[DEBUG] /regenerate called with arxiv_id={arxiv_id}, has_htmx={htmx is not None}", flush=True)
+    has_hx_header = False
+    try:
+        hx = request.headers.get("hx-request") or request.headers.get("HX-Request")
+        has_hx_header = (hx or "").lower() == "true"
+    except Exception:
+        has_hx_header = False
+    is_htmx = has_hx_header or (htmx is not None)
+    print(
+        f"[DEBUG] /regenerate called arxiv_id={arxiv_id} hx_header={has_hx_header} htmx_obj={htmx is not None}",
+        flush=True,
+    )
     cache_dir = _paper_cache_dir(arxiv_id)
     pdf_path = cache_dir / "original.pdf"
     txt_path = cache_dir / "text.txt"
@@ -1972,16 +1989,4 @@ async def regenerate(arxiv_id: str, summary_style: str = "", verbosity: str = "m
         Script(f"try{{ window.__renderMarkdown && window.__renderMarkdown(document.getElementById('{sum_id}')); }}catch(_e){{}}"),
         id=sum_id,
     )
-    if htmx:
-        return block
-    # Fallback: small page
-    return Html(
-        Head(Title("Regenerated Summary"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
-        Body(
-            Main(
-                Div(block, cls="container mx-auto max-w-3xl p-4"),
-                cls="mx-auto"
-            ),
-            cls="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 m-0 p-0"
-        )
-    )
+    return block
