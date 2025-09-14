@@ -1254,11 +1254,11 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                                 "Open PDF",
                                 href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxid}.pdf"),
                                 target="_blank",
-                                cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                                cls="inline-flex items-center justify-center h-9 px-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm",
                             ),
-                            cls="mt-3"
+                            regen_btn,
+                            cls="mt-3 flex justify-between items-center gap-3"
                         ),
-                        regen_btn,
                         id=sum_id,
                     ),
                     cls="p-5 border rounded-xl shadow-sm bg-white dark:bg-slate-800 dark:border-slate-700"
@@ -1717,29 +1717,27 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
                 "Open PDF",
                 href=(f"/files/pdf/{pdf_uid}" if pdf_uid else f"https://arxiv.org/pdf/{arxiv_id}.pdf"),
                 target="_blank",
-                cls="inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline",
+                cls="inline-flex items-center justify-center h-9 px-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm",
             ),
-            cls="mt-3"
-        ),
-        Button(
-            "Regenerate summary",
-            type="button",
-            onclick=(
-                "console.log('[DEBUG] Regenerate clicked in regenerate route for', this.dataset.arxivId);"
-                "console.log('[DEBUG] htmx available?', typeof window.htmx !== 'undefined');"
-                "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
-                "setTimeout(()=>{ this.disabled=true; }, 10);"
-                "if(!window.htmx){"
-                    "console.log('[DEBUG] Using fetch fallback in regenerate route');"
-                    "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
-                    "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
-                    ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
-                    ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
-                "} else {"
-                    "console.log('[DEBUG] htmx should handle this click in regenerate route');"
-                "}"
-            ),
-            cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+            Button(
+                "Regenerate summary",
+                type="button",
+                onclick=(
+                    "console.log('[DEBUG] Regenerate clicked in regenerate route for', this.dataset.arxivId);"
+                    "console.log('[DEBUG] htmx available?', typeof window.htmx !== 'undefined');"
+                    "this.textContent='Regenerating…'; this.classList.add('opacity-50','cursor-not-allowed');"
+                    "setTimeout(()=>{ this.disabled=true; }, 10);"
+                    "if(!window.htmx){"
+                        "console.log('[DEBUG] Using fetch fallback in regenerate route');"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||'';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style})})"
+                        ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; } })"
+                        ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
+                    "} else {"
+                        "console.log('[DEBUG] htmx should handle this click in regenerate route');"
+                    "}"
+                ),
+                cls="inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
             **{
                 "hx-post": "/regenerate",
                 "hx-target": f"#{sum_id}",
@@ -1758,6 +1756,8 @@ async def regenerate(arxiv_id: str, summary_style: str = "", htmx: HtmxHeaders |
                 "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
                 "data-target": f"#{sum_id}",
             },
+        ),
+            cls="mt-3 flex justify-between items-center gap-3"
         ),
         id=sum_id,
     )
