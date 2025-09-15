@@ -1263,6 +1263,10 @@ def index(
     state = _load_state()
     prefs = _get_prefs(state)
     sess = get_active_settings(request)
+    try:
+        print("[DEBUG] index sid=", request.session.get("sid"), flush=True)
+    except Exception:
+        pass
     # User categories list (ordered); build display mapping
     user_cats = _get_user_categories(state)
     display_map = _build_category_display_map(user_cats)
@@ -1637,6 +1641,10 @@ async def fetch(
     style_selected_title: str | None = None,
 ):
     state = _load_state()
+    try:
+        print("[DEBUG] fetch sid=", request.session.get("sid"), flush=True)
+    except Exception:
+        pass
     sess = get_active_settings(request)
     # Determine effective values from provided inputs or session/prefs
     prefs = _get_prefs(state)
@@ -1704,6 +1712,10 @@ async def fetch(
         narrowing_error = str(e)
         narrowed_items = items
     # Server-side debug log
+    try:
+        style_dbg = (summary_style or "")[:80]
+    except Exception:
+        style_dbg = ""
     print(
         "[DEBUG] fetch",
         {
@@ -1712,6 +1724,9 @@ async def fetch(
             "top_k": top_k,
             "narrowed": len(narrowed_items),
             "interest": interest,
+            "style_head": style_dbg,
+            "verbosity": verbosity,
+            "reasoning": reasoning,
             "error": narrowing_error,
         },
         flush=True,
@@ -1960,6 +1975,10 @@ def download_file(path: str):
 @rt("/download")
 async def download(request: Request):
     form = await request.form()
+    try:
+        print("[DEBUG] download sid=", request.session.get("sid"), flush=True)
+    except Exception:
+        pass
     # Multiple checkbox values under key 'selected'
     selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
     # Current working settings from session
@@ -1967,6 +1986,7 @@ async def download(request: Request):
     summary_style = sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
     verbosity = sess.get("verbosity", "medium")
     reasoning = sess.get("reasoning", "medium")
+    style_title = str(sess.get("summary_style_title") or "")
     if not selected_ids:
         return Html(
             Head(Title("No Selection"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
@@ -2061,7 +2081,7 @@ async def download(request: Request):
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback');"
                         "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id})})"
+                        f"fetch('/regenerate', {{method:'POST', headers:{{'Content-Type':'application/x-www-form-urlencoded'}}, body:new URLSearchParams({{arxiv_id:id, summary_style:{json.dumps((summary_style or '')).replace('"','\\"')}, verbosity:'{verbosity}', reasoning:'{reasoning}', style_selected_title:{json.dumps(style_title).replace('"','\\"')}}})}})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -2074,7 +2094,13 @@ async def download(request: Request):
                     "hx-target": f"#{sum_id}",
                     "hx-swap": "outerHTML",
                     "hx-trigger": "click",
-                    "hx-vals": json.dumps({"arxiv_id": arxid}),
+                    "hx-vals": json.dumps({
+                        "arxiv_id": arxid,
+                        "summary_style": summary_style or DEFAULT_SETTINGS["summary_style"],
+                        "verbosity": verbosity,
+                        "reasoning": reasoning,
+                        "style_selected_title": style_title,
+                    }),
                     "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired')",
                     "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired')",
                     "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired', event.detail)",
@@ -2537,7 +2563,7 @@ if __name__ == "__main__":
 @rt("/regenerate")
 async def regenerate(
     arxiv_id: str,
-    request: Request | None = None,
+    request: Request,
     summary_style: str = "",
     verbosity: str = "medium",
     reasoning: str = "medium",
@@ -2547,9 +2573,8 @@ async def regenerate(
     # Overwrite the cached summary for a single paper using the current style
     has_hx_header = False
     try:
-        if request is not None:
-            hx = request.headers.get("hx-request") or request.headers.get("HX-Request")
-            has_hx_header = (hx or "").lower() == "true"
+        hx = request.headers.get("hx-request") or request.headers.get("HX-Request")
+        has_hx_header = (hx or "").lower() == "true"
     except Exception:
         has_hx_header = False
     # Update working session settings only if non-empty values were explicitly provided
@@ -2570,15 +2595,23 @@ async def regenerate(
         pass
     is_htmx = has_hx_header or (htmx is not None)
     # Pull current settings from session when not provided explicitly
-    if request is not None:
-        sess = get_active_settings(request)
-        summary_style = summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
-        verbosity = verbosity or sess.get("verbosity", "medium")
-        reasoning = reasoning or sess.get("reasoning", "medium")
-        if not style_selected_title:
-            style_selected_title = str(sess.get("summary_style_title") or "")
+    sess = get_active_settings(request)
+    summary_style = summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+    verbosity = verbosity or sess.get("verbosity", "medium")
+    reasoning = reasoning or sess.get("reasoning", "medium")
+    if not style_selected_title:
+        style_selected_title = str(sess.get("summary_style_title") or "")
+    try:
+        sid_dbg = request.session.get("sid")
+    except Exception:
+        sid_dbg = None
     print(
-        f"[DEBUG] /regenerate called arxiv_id={arxiv_id} hx_header={has_hx_header} htmx_obj={htmx is not None}",
+        f"[DEBUG] /regenerate called arxiv_id={arxiv_id} hx_header={has_hx_header} htmx_obj={htmx is not None} sid={sid_dbg} ",
+        {
+            "style_head": (summary_style or "")[:80],
+            "verbosity": verbosity,
+            "reasoning": reasoning,
+        },
         flush=True,
     )
     cache_dir = _paper_cache_dir(arxiv_id)
@@ -2649,7 +2682,7 @@ async def regenerate(
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback in regenerate route');"
                         "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id})})"
+                        f"fetch('/regenerate', {{method:'POST', headers:{{'Content-Type':'application/x-www-form-urlencoded'}}, body:new URLSearchParams({{arxiv_id:id, summary_style:{json.dumps((summary_style or '')).replace('"','\\"')}, verbosity:'{verbosity}', reasoning:'{reasoning}', style_selected_title:{json.dumps(cur_title).replace('"','\\"')}}})}})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -2662,7 +2695,13 @@ async def regenerate(
                 "hx-target": f"#{sum_id}",
                 "hx-swap": "outerHTML",
                 "hx-trigger": "click",
-                "hx-vals": json.dumps({"arxiv_id": arxiv_id}),
+                "hx-vals": json.dumps({
+                    "arxiv_id": arxiv_id,
+                    "summary_style": summary_style or DEFAULT_SETTINGS["summary_style"],
+                    "verbosity": verbosity,
+                    "reasoning": reasoning,
+                    "style_selected_title": cur_title,
+                }),
                 "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired in regenerate route')",
                 "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired in regenerate route')",
                 "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired in regenerate route', event.detail)",
