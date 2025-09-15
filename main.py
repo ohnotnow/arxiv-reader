@@ -2552,16 +2552,20 @@ async def regenerate(
             has_hx_header = (hx or "").lower() == "true"
     except Exception:
         has_hx_header = False
-    # Update working session settings with latest style fields if available
+    # Update working session settings only if non-empty values were explicitly provided
     try:
         if request is not None:
-            update_active_settings(
-                request,
-                summary_style=summary_style,
-                verbosity=verbosity,
-                reasoning=reasoning,
-                summary_style_title=str(style_selected_title or ""),
-            )
+            changes: Dict[str, Any] = {}
+            if isinstance(summary_style, str) and summary_style.strip():
+                changes["summary_style"] = summary_style
+            if isinstance(style_selected_title, str) and style_selected_title.strip():
+                changes["summary_style_title"] = style_selected_title
+            if isinstance(verbosity, str) and verbosity.strip():
+                changes["verbosity"] = verbosity
+            if isinstance(reasoning, str) and reasoning.strip():
+                changes["reasoning"] = reasoning
+            if changes:
+                update_active_settings(request, **changes)
     except Exception:
         pass
     is_htmx = has_hx_header or (htmx is not None)
