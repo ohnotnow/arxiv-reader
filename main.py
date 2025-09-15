@@ -1875,7 +1875,7 @@ async def fetch(
                             cls="inline-flex items-center justify-center h-10 px-4 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium text-sm opacity-50 cursor-not-allowed",
                         ),
                         A(
-                            "Back",
+                            "Home",
                             href="/",
                             cls="block h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline font-medium text-sm text-center leading-10 hover:bg-slate-300 dark:hover:bg-slate-600",
                         ),
@@ -2177,13 +2177,20 @@ async def download(request: Request):
         Body(
             Main(
                 Div(
-                    P("Using per-paper cache under papers/<arXiv ID>", cls="text-sm text-slate-600 dark:text-slate-300"),
                 Div(*results_ui, cls="mt-4 space-y-3"),
                 Div(
-                    A(
-                        "Back to results",
-                        href="/fetch",
-                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm mt-4",
+                    Div(
+                        A(
+                            "Back to results",
+                            href="/fetch",
+                            cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm mt-4",
+                        ),
+                        A(
+                            "Home",
+                            href="/",
+                            cls="inline-flex items-center justify-center h-10 px-4 bg-slate-100 dark:bg-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded no-underline font-medium text-sm mt-4",
+                        ),
+                        cls="flex items-center gap-3"
                     ),
                 ),
                 cls="container mx-auto max-w-3xl p-4"
