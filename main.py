@@ -2068,6 +2068,31 @@ async def download(request: Request):
             pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_ok else None
 
             sum_id = f"sum-{_css_id(arxid)}"
+            # Build style selector (saved styles by title), defaulting to current session title
+            style_select_el = None
+            try:
+                styles_data = _get_styles(_load_state())
+                items = styles_data.get("items") if isinstance(styles_data, dict) else None
+                titles: List[str] = []
+                if isinstance(items, list):
+                    for it in items:
+                        if isinstance(it, dict) and it.get("title") and it.get("body"):
+                            titles.append(str(it.get("title")))
+                if titles:
+                    sel_id = f"style_sel_{_css_id(arxid)}"
+                    opts = [Option(t, value=t, selected=(t == style_title)) for t in titles]
+                    style_select_el = Select(
+                        *opts,
+                        id=sel_id,
+                        name="style_selected_title",
+                        cls=(
+                            "h-9 border rounded px-3 py-1.5 border-slate-300 bg-white text-slate-900 "
+                            "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 text-sm"
+                        ),
+                    )
+            except Exception:
+                style_select_el = None
+
             regen_btn = Button(
                 "Regenerate summary",
                 type="button",
@@ -2080,8 +2105,9 @@ async def download(request: Request):
                     # Fallback if htmx is unavailable
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
-                        f"fetch('/regenerate', {{method:'POST', headers:{{'Content-Type':'application/x-www-form-urlencoded'}}, body:new URLSearchParams({{arxiv_id:id, summary_style:{json.dumps((summary_style or '')).replace('"','\\"')}, verbosity:'{verbosity}', reasoning:'{reasoning}', style_selected_title:{json.dumps(style_title).replace('"','\\"')}}})}})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const selId=this.dataset.selectId;"
+                        "const sel=selId?document.getElementById(selId):null; const st=sel?sel.value:'';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, style_selected_title:st})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -2094,13 +2120,8 @@ async def download(request: Request):
                     "hx-target": f"#{sum_id}",
                     "hx-swap": "outerHTML",
                     "hx-trigger": "click",
-                    "hx-vals": json.dumps({
-                        "arxiv_id": arxid,
-                        "summary_style": summary_style or DEFAULT_SETTINGS["summary_style"],
-                        "verbosity": verbosity,
-                        "reasoning": reasoning,
-                        "style_selected_title": style_title,
-                    }),
+                    "hx-vals": json.dumps({"arxiv_id": arxid}),
+                    **({"hx-include": f"#style_sel_{_css_id(arxid)}"} if style_select_el is not None else {}),
                     "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired')",
                     "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired')",
                     "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired', event.detail)",
@@ -2108,6 +2129,7 @@ async def download(request: Request):
                 **{
                     "data-arxiv-id": arxid,
                     "data-target": f"#{sum_id}",
+                    **({"data-select-id": f"style_sel_{_css_id(arxid)}"} if style_select_el is not None else {}),
                 },
             )
 
@@ -2133,7 +2155,11 @@ async def download(request: Request):
                                 target="_blank",
                                 cls="inline-flex items-center justify-center h-9 px-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm",
                             ),
-                            regen_btn,
+                            Div(
+                                style_select_el,
+                                regen_btn,
+                                cls="flex items-center gap-2"
+                            ),
                             cls="mt-3 flex justify-between items-center gap-3"
                         ),
                         id=sum_id,
@@ -2564,10 +2590,10 @@ if __name__ == "__main__":
 async def regenerate(
     arxiv_id: str,
     request: Request,
-    summary_style: str = "",
-    verbosity: str = "medium",
-    reasoning: str = "medium",
-    style_selected_title: str = "",
+    summary_style: str | None = None,
+    verbosity: str | None = None,
+    reasoning: str | None = None,
+    style_selected_title: str | None = None,
     htmx: HtmxHeaders | None = None,
 ):
     # Overwrite the cached summary for a single paper using the current style
@@ -2594,8 +2620,37 @@ async def regenerate(
     except Exception:
         pass
     is_htmx = has_hx_header or (htmx is not None)
-    # Pull current settings from session when not provided explicitly
+    # Pull current settings from session and optionally override via selected style title
     sess = get_active_settings(request)
+    if style_selected_title and str(style_selected_title).strip():
+        # Look up saved style by title; adopt body and (if present) style-specific verbosity/reasoning
+        state = _load_state()
+        styles = _get_styles(state)
+        idx = _find_style_index(styles, style_selected_title)
+        if idx is not None and isinstance(styles.get("items"), list):
+            it = styles["items"][idx]
+            try:
+                summary_style = str(it.get("body", "")) or summary_style
+            except Exception:
+                pass
+            if verbosity is None:
+                v = it.get("verbosity")
+                verbosity = str(v) if v else None
+            if reasoning is None:
+                r = it.get("reasoning")
+                reasoning = str(r) if r else None
+            # Persist the chosen title
+            try:
+                update_active_settings(
+                    request,
+                    summary_style=summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"],
+                    summary_style_title=str(style_selected_title),
+                    verbosity=verbosity or sess.get("verbosity", "medium"),
+                    reasoning=reasoning or sess.get("reasoning", "medium"),
+                )
+            except Exception:
+                pass
+    # Finalize effective values
     summary_style = summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
     verbosity = verbosity or sess.get("verbosity", "medium")
     reasoning = reasoning or sess.get("reasoning", "medium")
@@ -2653,10 +2708,33 @@ async def regenerate(
     pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
     cur_title = ""
     try:
-        if request is not None:
-            cur_title = str(get_active_settings(request).get("summary_style_title") or "")
+        cur_title = str(get_active_settings(request).get("summary_style_title") or "")
     except Exception:
         cur_title = ""
+    # Build style selector (saved styles by title), defaulting to current session title
+    style_select_el = None
+    try:
+        styles_data = _get_styles(_load_state())
+        items = styles_data.get("items") if isinstance(styles_data, dict) else None
+        titles: List[str] = []
+        if isinstance(items, list):
+            for it in items:
+                if isinstance(it, dict) and it.get("title") and it.get("body"):
+                    titles.append(str(it.get("title")))
+        if titles:
+            sel_id = f"style_sel_{_css_id(arxiv_id)}"
+            opts = [Option(t, value=t, selected=(t == cur_title)) for t in titles]
+            style_select_el = Select(
+                *opts,
+                id=sel_id,
+                name="style_selected_title",
+                cls=(
+                    "h-9 border rounded px-3 py-1.5 border-slate-300 bg-white text-slate-900 "
+                    "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 text-sm"
+                ),
+            )
+    except Exception:
+        style_select_el = None
     block = Div(
         Div(
             summary,
@@ -2671,7 +2749,9 @@ async def regenerate(
                 target="_blank",
                 cls="inline-flex items-center justify-center h-9 px-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm",
             ),
-            Button(
+            Div(
+                style_select_el,
+                Button(
                 "Regenerate summary",
                 type="button",
                 onclick=(
@@ -2681,8 +2761,9 @@ async def regenerate(
                     "setTimeout(()=>{ this.disabled=true; }, 10);"
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback in regenerate route');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
-                        f"fetch('/regenerate', {{method:'POST', headers:{{'Content-Type':'application/x-www-form-urlencoded'}}, body:new URLSearchParams({{arxiv_id:id, summary_style:{json.dumps((summary_style or '')).replace('"','\\"')}, verbosity:'{verbosity}', reasoning:'{reasoning}', style_selected_title:{json.dumps(cur_title).replace('"','\\"')}}})}})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const selId=this.dataset.selectId;"
+                        "const sel=selId?document.getElementById(selId):null; const st=sel?sel.value:'';"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, style_selected_title:st})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -2695,13 +2776,8 @@ async def regenerate(
                 "hx-target": f"#{sum_id}",
                 "hx-swap": "outerHTML",
                 "hx-trigger": "click",
-                "hx-vals": json.dumps({
-                    "arxiv_id": arxiv_id,
-                    "summary_style": summary_style or DEFAULT_SETTINGS["summary_style"],
-                    "verbosity": verbosity,
-                    "reasoning": reasoning,
-                    "style_selected_title": cur_title,
-                }),
+                "hx-vals": json.dumps({"arxiv_id": arxiv_id}),
+                **({"hx-include": f"#style_sel_{_css_id(arxiv_id)}"} if style_select_el is not None else {}),
                 "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired in regenerate route')",
                 "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired in regenerate route')",
                 "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired in regenerate route', event.detail)",
@@ -2709,8 +2785,11 @@ async def regenerate(
             **{
                 "data-arxiv-id": arxiv_id,
                 "data-target": f"#{sum_id}",
+                **({"data-select-id": f"style_sel_{_css_id(arxiv_id)}"} if style_select_el is not None else {}),
             },
-        ),
+                ),
+                cls="flex items-center gap-2"
+            ),
             cls="mt-3 flex justify-between items-center gap-3"
         ),
         # Ensure markdown render runs even if htmx events are missed
