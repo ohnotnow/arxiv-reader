@@ -573,10 +573,12 @@ def openai_summarize(
             "limitations, and why it matters."
         )
 
-    # Title handling: omit title to avoid duplication in UI
+    # Title/label handling: avoid extra headings or labels before content
     base_instructions += (
         "\n\nDo not include any title heading and do not repeat the paper title; "
-        "begin directly with the summary content."
+        "begin directly with the summary content. Do not add standalone headings like "
+        "'Summary', 'Overview', or audience/verbosity labels (e.g., 'ELI5', 'very short') "
+        "above the content."
     )
 
     # Language guidance to avoid accidental non-English outputs when titles contain non-English words
@@ -2086,7 +2088,7 @@ async def download(request: Request):
                         id=sel_id,
                         name="style_selected_title",
                         cls=(
-                            "h-9 border rounded px-3 py-1.5 border-slate-300 bg-white text-slate-900 "
+                            "h-10 border rounded px-3 py-2 border-slate-300 bg-white text-slate-900 "
                             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 text-sm"
                         ),
                     )
@@ -2114,7 +2116,7 @@ async def download(request: Request):
                         "console.log('[DEBUG] htmx should handle this click');"
                     "}"
                 ),
-                cls="mt-3 inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+                cls="mt-3 inline-flex items-center justify-center h-10 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
                 **{
                     "hx-post": "/regenerate",
                     "hx-target": f"#{sum_id}",
@@ -2729,7 +2731,7 @@ async def regenerate(
                 id=sel_id,
                 name="style_selected_title",
                 cls=(
-                    "h-9 border rounded px-3 py-1.5 border-slate-300 bg-white text-slate-900 "
+                    "h-10 border rounded px-3 py-2 border-slate-300 bg-white text-slate-900 "
                     "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 text-sm"
                 ),
             )
@@ -2770,7 +2772,7 @@ async def regenerate(
                         "console.log('[DEBUG] htmx should handle this click in regenerate route');"
                     "}"
                 ),
-                cls="inline-flex items-center justify-center h-9 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+                cls="inline-flex items-center justify-center h-10 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
             **{
                 "hx-post": "/regenerate",
                 "hx-target": f"#{sum_id}",
