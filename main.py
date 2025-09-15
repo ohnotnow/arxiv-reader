@@ -2116,7 +2116,7 @@ async def download(request: Request):
                         "console.log('[DEBUG] htmx should handle this click');"
                     "}"
                 ),
-                cls="mt-3 inline-flex items-center justify-center h-10 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
+                cls="inline-flex items-center justify-center h-10 px-3 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 text-sm",
                 **{
                     "hx-post": "/regenerate",
                     "hx-target": f"#{sum_id}",
