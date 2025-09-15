@@ -190,7 +190,16 @@ def _find_style_index(styles: Dict[str, Any], title: str) -> Optional[int]:
     return None
 
 
-def _upsert_style(state: Dict[str, Any], title: str, body: str) -> None:
+def _upsert_style(
+    state: Dict[str, Any],
+    title: str,
+    body: str,
+    *,
+    verbosity: Optional[str] = None,
+    reasoning: Optional[str] = None,
+    use_embeddings: Optional[str] = None,
+    top_k: Optional[int] = None,
+) -> None:
     styles = _get_styles(state)
     items = styles.get("items")
     if not isinstance(items, list):
@@ -201,9 +210,32 @@ def _upsert_style(state: Dict[str, Any], title: str, body: str) -> None:
     if idx is not None:
         it = items[idx] if idx < len(items) else {}
         it = {**it, "title": title, "body": body, "ts": now_iso, "count": int(it.get("count", 0) or 0) + 1}
+        if verbosity is not None:
+            it["verbosity"] = verbosity
+        if reasoning is not None:
+            it["reasoning"] = reasoning
+        if use_embeddings is not None:
+            it["use_embeddings"] = use_embeddings
+        if top_k is not None:
+            try:
+                it["top_k"] = int(top_k)
+            except Exception:
+                pass
         items[idx] = it
     else:
-        items.insert(0, {"title": title, "body": body, "ts": now_iso, "count": 1})
+        new_item: Dict[str, Any] = {"title": title, "body": body, "ts": now_iso, "count": 1}
+        if verbosity is not None:
+            new_item["verbosity"] = verbosity
+        if reasoning is not None:
+            new_item["reasoning"] = reasoning
+        if use_embeddings is not None:
+            new_item["use_embeddings"] = use_embeddings
+        if top_k is not None:
+            try:
+                new_item["top_k"] = int(top_k)
+            except Exception:
+                pass
+        items.insert(0, new_item)
     _set_styles(state, styles)
 
 
@@ -675,7 +707,14 @@ def category_select(selected: str | None = None, last_checked_labels: Optional[D
 # ---------- Styles management (HTMX partials) ----------
 
 @rt("/styles/save")
-def styles_save(style_title_input: str = "", summary_style: str = ""):
+def styles_save(
+    style_title_input: str = "",
+    summary_style: str = "",
+    verbosity: str = "medium",
+    reasoning: str = "medium",
+    use_embeddings: str = "off",
+    top_k: str = "10",
+):
     state = _load_state()
     title = (style_title_input or "").strip()
     body = (summary_style or "").strip()
@@ -687,21 +726,46 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
     elif len(title) > 60:
         error = "Style title is too long (max 60 characters)."
     else:
-        _upsert_style(state, title, body)
+        _upsert_style(
+            state,
+            title,
+            body,
+            verbosity=verbosity,
+            reasoning=reasoning,
+            use_embeddings=("on" if use_embeddings == "on" else "off"),
+            top_k=int(top_k or "10"),
+        )
         # Also remember as the preference for convenience
         prefs = _get_prefs(state)
-        prefs["summary_style"] = body
+        prefs.update(
+            {
+                "summary_style": body,
+                "verbosity": verbosity,
+                "reasoning": reasoning,
+                "use_embeddings": ("on" if use_embeddings == "on" else "off"),
+                "top_k": int(top_k or "10"),
+            }
+        )
         _set_prefs(state, prefs)
         _save_state(state)
         saved_msg = f"Saved style: {title}"
 
     # Re-render styles section partial
     saved_styles = _get_styles(state)
-    saved_items: List[Dict[str, str]] = []
+    saved_items: List[Dict[str, Any]] = []
     if isinstance(saved_styles.get("items"), list):
         for it in saved_styles["items"]:
             if isinstance(it, dict) and (it.get("title") and it.get("body")):
-                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+                saved_items.append(
+                    {
+                        "title": str(it["title"]),
+                        "body": str(it["body"]),
+                        "verbosity": it.get("verbosity"),
+                        "reasoning": it.get("reasoning"),
+                        "use_embeddings": it.get("use_embeddings"),
+                        "top_k": it.get("top_k"),
+                    }
+                )
 
     def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
         opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
@@ -709,7 +773,21 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
             t = it.get("title", "")
             b = it.get("body", "")
             sel = (t == current_title_val)
-            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+            opts.append(
+                Option(
+                    t,
+                    value=b,
+                    selected=sel,
+                    **{
+                        "data-title": t,
+                        "title": t,
+                        "data-verbosity": str(it.get("verbosity") or ""),
+                        "data-reasoning": str(it.get("reasoning") or ""),
+                        "data-use-embeddings": ("on" if (it.get("use_embeddings") or "on") != "off" else "off"),
+                        "data-top-k": str(it.get("top_k") or ""),
+                    },
+                )
+            )
         controls: List[Any] = []
         if saved_msg:
             controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
@@ -726,6 +804,10 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "var b=document.getElementById('summary_style_input');"
                         "var s=document.getElementById('style_selected_title');"
                         "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "var v=document.getElementById('verbosity_select'); if(v&&opt){ v.value=opt.dataset.verbosity||v.value; }"
+                        "var r=document.getElementById('reasoning_select'); if(r&&opt){ r.value=opt.dataset.reasoning||r.value; }"
+                        "var k=document.getElementById('top_k_input'); if(k&&opt){ k.value=opt.dataset.topK||k.value; }"
+                        "var e=document.getElementById('use_embeddings_checkbox'); if(e&&opt){ e.checked=(opt.dataset.useEmbeddings!=='off'); }"
                         "})(this)"
                     ),
                     cls=(
@@ -745,7 +827,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "hx-post": "/styles/delete",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-include": "#style_selected_title, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
@@ -786,7 +868,7 @@ def styles_save(style_title_input: str = "", summary_style: str = ""):
                         "hx-post": "/styles/save",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_title_input, #summary_style_input",
+                        "hx-include": "#style_title_input, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                     },
                 ),
                 cls=""
@@ -816,11 +898,20 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
             error = f"Style not found: {title}"
 
     saved_styles = _get_styles(state)
-    saved_items: List[Dict[str, str]] = []
+    saved_items: List[Dict[str, Any]] = []
     if isinstance(saved_styles.get("items"), list):
         for it in saved_styles["items"]:
             if isinstance(it, dict) and (it.get("title") and it.get("body")):
-                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+                saved_items.append(
+                    {
+                        "title": str(it["title"]),
+                        "body": str(it["body"]),
+                        "verbosity": it.get("verbosity"),
+                        "reasoning": it.get("reasoning"),
+                        "use_embeddings": it.get("use_embeddings"),
+                        "top_k": it.get("top_k"),
+                    }
+                )
 
     def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
         opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
@@ -828,7 +919,21 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
             t = it.get("title", "")
             b = it.get("body", "")
             sel = (t == current_title_val)
-            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+            opts.append(
+                Option(
+                    t,
+                    value=b,
+                    selected=sel,
+                    **{
+                        "data-title": t,
+                        "title": t,
+                        "data-verbosity": str(it.get("verbosity") or ""),
+                        "data-reasoning": str(it.get("reasoning") or ""),
+                        "data-use-embeddings": ("on" if (it.get("use_embeddings") or "on") != "off" else "off"),
+                        "data-top-k": str(it.get("top_k") or ""),
+                    },
+                )
+            )
         controls: List[Any] = []
         if saved_msg:
             controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
@@ -845,6 +950,10 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "var b=document.getElementById('summary_style_input');"
                         "var s=document.getElementById('style_selected_title');"
                         "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "var v=document.getElementById('verbosity_select'); if(v&&opt){ v.value=opt.dataset.verbosity||v.value; }"
+                        "var r=document.getElementById('reasoning_select'); if(r&&opt){ r.value=opt.dataset.reasoning||r.value; }"
+                        "var k=document.getElementById('top_k_input'); if(k&&opt){ k.value=opt.dataset.topK||k.value; }"
+                        "var e=document.getElementById('use_embeddings_checkbox'); if(e&&opt){ e.checked=(opt.dataset.useEmbeddings!=='off'); }"
                         "})(this)"
                     ),
                     cls=(
@@ -864,7 +973,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "hx-post": "/styles/delete",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-include": "#style_selected_title, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
@@ -905,7 +1014,7 @@ def styles_delete(style_selected_title: str = "", summary_style: str = ""):
                         "hx-post": "/styles/save",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_title_input, #summary_style_input",
+                        "hx-include": "#style_title_input, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                     },
                 ),
                 cls=""
@@ -1092,26 +1201,68 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     recent_interests = _recent_interests(history, cat_code, limit=10)
     recent_styles = _recent_styles(history, limit=10)
     saved_styles = _get_styles(state)
-    saved_items: List[Dict[str, str]] = []
+    saved_items: List[Dict[str, Any]] = []
     if isinstance(saved_styles.get("items"), list):
         for it in saved_styles["items"]:
             if isinstance(it, dict) and (it.get("title") and it.get("body")):
-                saved_items.append({"title": str(it["title"]), "body": str(it["body"])})
+                saved_items.append(
+                    {
+                        "title": str(it["title"]),
+                        "body": str(it["body"]),
+                        "verbosity": it.get("verbosity"),
+                        "reasoning": it.get("reasoning"),
+                        "use_embeddings": it.get("use_embeddings"),
+                        "top_k": it.get("top_k"),
+                    }
+                )
     # Determine current title if the default style matches a saved body
     current_title = ""
+    current_style_obj: Optional[Dict[str, Any]] = None
     for it in saved_items:
         if it.get("body", "") == (default_style or ""):
             current_title = it.get("title", "")
+            current_style_obj = it
             break
+    # If a saved style is active, and query params did not explicitly set these,
+    # adopt the style-specific settings as defaults
+    if current_style_obj is not None:
+        if verbosity is None:
+            default_verbosity = str(current_style_obj.get("verbosity") or default_verbosity)
+        if reasoning is None:
+            default_reasoning = str(current_style_obj.get("reasoning") or default_reasoning)
+        if use_embeddings is None:
+            ue = current_style_obj.get("use_embeddings")
+            if ue in ("on", "off"):
+                default_use_emb = ue
+        if top_k is None:
+            try:
+                tk = int(current_style_obj.get("top_k")) if current_style_obj.get("top_k") is not None else default_top_k
+                default_top_k = tk
+            except Exception:
+                pass
 
     def render_styles_section(current_title_val: str, current_body_val: str, error_msg: str | None = None, saved_msg: str | None = None):
-        # Build a select of saved titles; use option value as body and data-title as title.
+        # Build a select of saved titles; include saved settings as data-* attributes
         opts = [Option("Select a saved style…", value="", **{"data-title": ""})]
         for it in saved_items:
             t = it.get("title", "")
             b = it.get("body", "")
             sel = (t == current_title_val)
-            opts.append(Option(t, value=b, selected=sel, **{"data-title": t, "title": t}))
+            opts.append(
+                Option(
+                    t,
+                    value=b,
+                    selected=sel,
+                    **{
+                        "data-title": t,
+                        "title": t,
+                        "data-verbosity": str(it.get("verbosity") or ""),
+                        "data-reasoning": str(it.get("reasoning") or ""),
+                        "data-use-embeddings": ("on" if (it.get("use_embeddings") or "on") != "off" else "off"),
+                        "data-top-k": str(it.get("top_k") or ""),
+                    },
+                )
+            )
         controls = []
         if saved_msg:
             controls.append(Div(saved_msg, cls="mb-2 p-2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm"))
@@ -1128,6 +1279,10 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "var b=document.getElementById('summary_style_input');"
                         "var s=document.getElementById('style_selected_title');"
                         "if(opt){ t.value=opt.dataset.title||''; b.value=opt.value||''; s.value=opt.dataset.title||''; }"
+                        "var v=document.getElementById('verbosity_select'); if(v&&opt){ v.value=opt.dataset.verbosity||v.value; }"
+                        "var r=document.getElementById('reasoning_select'); if(r&&opt){ r.value=opt.dataset.reasoning||r.value; }"
+                        "var k=document.getElementById('top_k_input'); if(k&&opt){ k.value=opt.dataset.topK||k.value; }"
+                        "var e=document.getElementById('use_embeddings_checkbox'); if(e&&opt){ e.checked=(opt.dataset.useEmbeddings!=='off'); }"
                         "})(this)"
                     ),
                     cls=(
@@ -1147,7 +1302,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "hx-post": "/styles/delete",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_selected_title, #summary_style_input",
+                        "hx-include": "#style_selected_title, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                         "hx-confirm": "Delete selected style?",
                     },
                 ),
@@ -1188,7 +1343,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                         "hx-post": "/styles/save",
                         "hx-target": "#styles_section",
                         "hx-swap": "outerHTML",
-                        "hx-include": "#style_title_input, #summary_style_input",
+                        "hx-include": "#style_title_input, #summary_style_input, #verbosity_select, #reasoning_select, #use_embeddings_checkbox, #top_k_input",
                     },
                 ),
                 cls=""
@@ -1297,7 +1452,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                 Div(
                                     Div(
                                         Label("Top K results", cls="text-sm font-medium mb-1"),
-                                        Input(type="number", name="top_k", value=str(default_top_k), min="5", max="200", cls=(
+                                        Input(type="number", name="top_k", id="top_k_input", value=str(default_top_k), min="5", max="200", cls=(
                                             "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                             "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
                                         )),
@@ -1310,6 +1465,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                             Option("Medium", value="medium", selected=(default_verbosity == "medium")),
                                             Option("High", value="high", selected=(default_verbosity == "high")),
                                             name="verbosity",
+                                            id="verbosity_select",
                                             cls=(
                                                 "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                                 "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
@@ -1325,6 +1481,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                             Option("Medium", value="medium", selected=(default_reasoning == "medium")),
                                             Option("High", value="high", selected=(default_reasoning == "high")),
                                             name="reasoning",
+                                            id="reasoning_select",
                                             cls=(
                                                 "h-9 border rounded px-3 py-1.5 w-full border-slate-300 bg-white text-slate-900 "
                                                 "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
@@ -1338,6 +1495,7 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                                     Input(
                                         type="checkbox",
                                         name="use_embeddings",
+                                        id="use_embeddings_checkbox",
                                         checked=(default_use_emb != "off"),
                                         cls=(
                                             "h-4 w-4 mr-2 shrink-0 rounded-sm border-2 border-slate-400 dark:border-slate-500 "
