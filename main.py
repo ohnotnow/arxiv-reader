@@ -17,6 +17,8 @@ from pypdf import PdfReader
 
 # FastHTML for app + HTML building
 from fasthtml.common import *  # type: ignore
+from starlette.middleware.sessions import SessionMiddleware
+import secrets
 from starlette.responses import FileResponse
 
 # Silence HF tokenizers fork warnings (Chroma default embedder)
@@ -683,6 +685,83 @@ markdown_script = Script(
 
 app, rt = fast_app(hdrs=(tailwind, htmx), pico=False)
 
+# ---------- Simple server-side session state ----------
+# We store only a small session id in the cookie, and keep the full
+# working preferences per user in an in-memory map keyed by that id.
+_SESSION_STORE: Dict[str, Dict[str, Any]] = {}
+
+
+def _session_secret() -> str:
+    """Load or create a secret for SessionMiddleware from .sesskey."""
+    try:
+        p = Path(".sesskey")
+        if p.exists():
+            s = p.read_text().strip()
+            if s:
+                return s
+        s = secrets.token_urlsafe(32)
+        p.write_text(s)
+        return s
+    except Exception:
+        # Fallback to an ephemeral secret; sessions will reset on restart
+        return secrets.token_urlsafe(32)
+
+
+app.add_middleware(SessionMiddleware, secret_key=_session_secret(), same_site="lax")
+
+
+DEFAULT_SETTINGS: Dict[str, Any] = {
+    "summary_style": (
+        "Someone with passing knowledge of the area, but not an expert - use clear, "
+        "understandable terms that don't need deep specialist understanding"
+    ),
+    "summary_style_title": "",
+    "verbosity": "medium",
+    "reasoning": "medium",
+    "use_embeddings": "on",
+    "top_k": 10,
+    "interest": "",
+}
+
+
+def _get_sid(request: Request) -> str:
+    sid = request.session.get("sid")  # type: ignore[attr-defined]
+    if not sid:
+        sid = uuid.uuid4().hex
+        request.session["sid"] = sid  # type: ignore[attr-defined]
+    return sid
+
+
+def get_active_settings(request: Request) -> Dict[str, Any]:
+    """Return merged working settings for this user.
+
+    Merge precedence: DEFAULTS < persisted prefs (state.json) < session store.
+    Ensures basic type normalization for simple fields.
+    """
+    sid = _get_sid(request)
+    state = _load_state()
+    prefs = _get_prefs(state)
+    session_vals = _SESSION_STORE.get(sid, {})
+    merged: Dict[str, Any] = {**DEFAULT_SETTINGS, **prefs, **session_vals}
+    # Normalize
+    try:
+        merged["top_k"] = int(merged.get("top_k") or 10)
+    except Exception:
+        merged["top_k"] = 10
+    merged["use_embeddings"] = "off" if str(merged.get("use_embeddings")) == "off" else "on"
+    if not isinstance(merged.get("summary_style_title"), str):
+        merged["summary_style_title"] = ""
+    _SESSION_STORE[sid] = merged
+    return merged
+
+
+def update_active_settings(request: Request, **changes: Any) -> Dict[str, Any]:
+    sid = _get_sid(request)
+    cur = get_active_settings(request)
+    cur.update(changes)
+    _SESSION_STORE[sid] = cur
+    return cur
+
 
 def category_select(selected: str | None = None, last_checked_labels: Optional[Dict[str, str]] = None, select_attrs: Optional[Dict[str, Any]] = None, choices: Optional[Dict[str, str]] = None):
     opts = []
@@ -1171,9 +1250,19 @@ def paper_row(item: Dict[str, Any]) -> Any:
 
 
 @rt("/")
-def index(category: str | None = None, interest: str | None = None, summary_style: str | None = None, use_embeddings: str | None = None, top_k: int | None = None, verbosity: str | None = None, reasoning: str | None = None):
+def index(
+    request: Request,
+    category: str | None = None,
+    interest: str | None = None,
+    summary_style: str | None = None,
+    use_embeddings: str | None = None,
+    top_k: int | None = None,
+    verbosity: str | None = None,
+    reasoning: str | None = None,
+):
     state = _load_state()
     prefs = _get_prefs(state)
+    sess = get_active_settings(request)
     # User categories list (ordered); build display mapping
     user_cats = _get_user_categories(state)
     display_map = _build_category_display_map(user_cats)
@@ -1183,18 +1272,12 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
     # Use session-stable anchor for this category
     last_run = _get_session_anchor(cat_code)
 
-    default_style = (
-        summary_style
-        or prefs.get(
-            "summary_style",
-            "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
-        )
-    )
-    default_use_emb = (use_embeddings if use_embeddings is not None else prefs.get("use_embeddings", "on"))
-    default_top_k = (top_k if top_k is not None else int(prefs.get("top_k", 10)))
-    interest_value = interest if interest is not None else prefs.get("interest", "")
-    default_verbosity = verbosity or prefs.get("verbosity", "medium")
-    default_reasoning = reasoning or prefs.get("reasoning", "medium")
+    default_style = summary_style or sess.get("summary_style") or prefs.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+    default_use_emb = use_embeddings if use_embeddings is not None else sess.get("use_embeddings", prefs.get("use_embeddings", "on"))
+    default_top_k = top_k if top_k is not None else int(sess.get("top_k", prefs.get("top_k", 10)))
+    interest_value = (interest if interest is not None else sess.get("interest", prefs.get("interest", "")))
+    default_verbosity = verbosity or sess.get("verbosity", prefs.get("verbosity", "medium"))
+    default_reasoning = reasoning or sess.get("reasoning", prefs.get("reasoning", "medium"))
 
     # Build recent history suggestions
     history = _get_history(state)
@@ -1216,13 +1299,14 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
                     }
                 )
     # Determine current title if the default style matches a saved body
-    current_title = ""
+    current_title = str(sess.get("summary_style_title") or "")
     current_style_obj: Optional[Dict[str, Any]] = None
-    for it in saved_items:
-        if it.get("body", "") == (default_style or ""):
-            current_title = it.get("title", "")
-            current_style_obj = it
-            break
+    if not current_title:
+        for it in saved_items:
+            if it.get("body", "") == (default_style or ""):
+                current_title = it.get("title", "")
+                current_style_obj = it
+                break
     # If a saved style is active, and query params did not explicitly set these,
     # adopt the style-specific settings as defaults
     if current_style_obj is not None:
@@ -1541,20 +1625,44 @@ def index(category: str | None = None, interest: str | None = None, summary_styl
 
 
 @rt("/fetch")
-async def fetch(category: str, interest: str = "", summary_style: str = "", use_embeddings: str = "on", top_k: str = "10", verbosity: str = "medium", reasoning: str = "medium"):
+async def fetch(
+    request: Request,
+    category: str | None = None,
+    interest: str | None = None,
+    summary_style: str | None = None,
+    use_embeddings: str | None = None,
+    top_k: str | None = None,
+    verbosity: str | None = None,
+    reasoning: str | None = None,
+    style_selected_title: str | None = None,
+):
     state = _load_state()
+    sess = get_active_settings(request)
+    # Determine effective values from provided inputs or session/prefs
+    prefs = _get_prefs(state)
+    # Category default chain: provided -> session -> prefs -> first known
+    # Build user display map similar to index
+    user_cats = _get_user_categories(state)
+    display_map = _build_category_display_map(user_cats)
+    first_code = next(iter(display_map.values())) if display_map else next(iter(CATEGORIES.values()))
+    category = category or sess.get("category") or prefs.get("category") or first_code
+    interest = (interest if interest is not None else sess.get("interest", ""))
+    summary_style = summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+    use_embeddings = use_embeddings if use_embeddings is not None else sess.get("use_embeddings", "on")
+    top_k = top_k or str(sess.get("top_k", 10))
+    verbosity = verbosity or sess.get("verbosity", "medium")
+    reasoning = reasoning or sess.get("reasoning", "medium")
     # Use session anchor (stable during app lifetime)
     since = _get_session_anchor(category)
 
     # If using embeddings, fetch without simple substring filter to avoid over-pruning
-    items = await arxiv_fetch(category, since, None if (use_embeddings != "off" and interest) else (interest or None))
+    items = await arxiv_fetch(category, since, None if (use_embeddings != "off" and (interest or "")) else (interest or None))
 
     # Save user prefs for next time (but do NOT advance anchor here)
-    prefs = _get_prefs(state)
     prefs.update(
         {
             "category": category,
-            "interest": interest,
+            "interest": (interest or ""),
             "use_embeddings": ("off" if use_embeddings == "off" else "on"),
             "top_k": int(top_k or "10"),
             "summary_style": summary_style,
@@ -1563,6 +1671,18 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
         }
     )
     _set_prefs(state, prefs)
+    # Update session working set, including the selected style title
+    update_active_settings(
+        request,
+        category=category,
+        interest=(interest or ""),
+        use_embeddings=("off" if use_embeddings == "off" else "on"),
+        top_k=int(top_k or "10"),
+        summary_style=summary_style,
+        verbosity=verbosity,
+        reasoning=reasoning,
+        summary_style_title=str(style_selected_title or sess.get("summary_style_title") or ""),
+    )
     # Update history for quick re-use
     history = _get_history(state)
     if interest.strip():
@@ -1576,10 +1696,10 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     narrowed_items = items
     narrowing_error = None
     try:
-        if (use_embeddings != "off") and interest:
+        if (use_embeddings != "off") and (interest or ""):
             k = max(5, min(200, int(top_k or "10")))
             # Offload Chroma ops to a thread to keep loop responsive
-            narrowed_items = await asyncio.to_thread(narrow_with_chroma, items, interest, k, category)
+            narrowed_items = await asyncio.to_thread(narrow_with_chroma, items, (interest or ""), k, category)
     except Exception as e:
         narrowing_error = str(e)
         narrowed_items = items
@@ -1601,6 +1721,7 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
     _update_latest_seen(category, narrowed_items)
 
     results = [paper_row(it) for it in narrowed_items]
+    chosen_title = style_selected_title or ""
     fallback_ui = None
     if not results:
         # Automatic fallback: show recent cached matches (last 7 days) with current filters
@@ -1719,19 +1840,6 @@ async def fetch(category: str, interest: str = "", summary_style: str = "", use_
                 Div(
                     H1("Results", cls="text-2xl font-bold mb-4"),
                 Form(
-                    Div(
-                        Input(type="hidden", name="category", value=category),
-                        Input(type="hidden", name="interest", value=interest),
-                        Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
-                        Input(type="hidden", name="top_k", value=str(top_k)),
-                        Input(type="hidden", name="verbosity", value=verbosity),
-                        Input(type="hidden", name="reasoning", value=reasoning),
-                        Textarea(
-                            summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
-                            name="summary_style",
-                            cls="hidden",
-                        ),
-                    ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     (fallback_ui if fallback_ui is not None else None),
                     Div(
@@ -1850,13 +1958,15 @@ def download_file(path: str):
 
 
 @rt("/download")
-async def download(request: Request, category: str = "", interest: str = "", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
+async def download(request: Request):
     form = await request.form()
     # Multiple checkbox values under key 'selected'
     selected_ids = form.getlist("selected")  # type: ignore[attr-defined]
-    # Preserve settings to reconstruct results
-    use_embeddings = form.get("use_embeddings") or "on"  # type: ignore[attr-defined]
-    top_k_val = form.get("top_k") or "10"  # type: ignore[attr-defined]
+    # Current working settings from session
+    sess = get_active_settings(request)
+    summary_style = sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+    verbosity = sess.get("verbosity", "medium")
+    reasoning = sess.get("reasoning", "medium")
     if not selected_ids:
         return Html(
             Head(Title("No Selection"), tailwind, htmx, marked_js, dompurify_js, markdown_script),
@@ -1913,7 +2023,7 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                 summary = await asyncio.to_thread(
                     openai_summarize,
                     text,
-                    summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+                    summary_style or DEFAULT_SETTINGS["summary_style"],
                     verbosity,
                     reasoning,
                     title,
@@ -1950,8 +2060,8 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     # Fallback if htmx is unavailable
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -1964,21 +2074,13 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     "hx-target": f"#{sum_id}",
                     "hx-swap": "outerHTML",
                     "hx-trigger": "click",
-                    "hx-vals": json.dumps({
-                        "arxiv_id": arxid,
-                        "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
-                        "verbosity": verbosity,
-                        "reasoning": reasoning,
-                    }),
+                    "hx-vals": json.dumps({"arxiv_id": arxid}),
                     "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired')",
                     "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired')",
                     "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired', event.detail)",
                 },
                 **{
                     "data-arxiv-id": arxid,
-                    "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
-                    "data-verbosity": verbosity,
-                    "data-reasoning": reasoning,
                     "data-target": f"#{sum_id}",
                 },
             )
@@ -2024,21 +2126,10 @@ async def download(request: Request, category: str = "", interest: str = "", sum
                     P("Using per-paper cache under papers/<arXiv ID>", cls="text-sm text-slate-600 dark:text-slate-300"),
                 Div(*results_ui, cls="mt-4 space-y-3"),
                 Div(
-                    Form(
-                    Input(type="hidden", name="category", value=category),
-                    Input(type="hidden", name="interest", value=interest),
-                    Input(type="hidden", name="use_embeddings", value=("on" if (use_embeddings != "off") else "off")),
-                    Input(type="hidden", name="top_k", value=str(top_k_val)),
-                    Input(type="hidden", name="verbosity", value=verbosity),
-                    Input(type="hidden", name="reasoning", value=reasoning),
-                    Textarea(summary_style or "", name="summary_style", cls="hidden"),
-                    Button(
+                    A(
                         "Back to results",
-                        type="submit",
-                        formaction="/fetch",
-                        formmethod="post",
-                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm mt-4",
-                    ),
+                        href="/fetch",
+                        cls="inline-flex items-center justify-center h-10 px-4 bg-slate-200 dark:bg-slate-700 dark:text-slate-100 rounded no-underline hover:bg-slate-300 dark:hover:bg-slate-600 font-medium text-sm mt-4",
                     ),
                 ),
                 cls="container mx-auto max-w-3xl p-4"
@@ -2051,7 +2142,15 @@ async def download(request: Request, category: str = "", interest: str = "", sum
 
 
 @rt("/previous")
-async def previous(category: str, interest: str = "", use_embeddings: str = "on", top_k: str = "10", previous_days: str = "7", summary_style: str = "", verbosity: str = "medium", reasoning: str = "medium"):
+async def previous(request: Request, previous_days: str = "7"):
+    sess = get_active_settings(request)
+    category = sess.get("category") or next(iter(CATEGORIES.values()))
+    interest = sess.get("interest", "")
+    use_embeddings = sess.get("use_embeddings", "on")
+    top_k = str(sess.get("top_k", 10))
+    summary_style = sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+    verbosity = sess.get("verbosity", "medium")
+    reasoning = sess.get("reasoning", "medium")
     # Look back over past N days in the Chroma cache and return top-k matches
     k = max(5, min(200, int(top_k or "50")))
     days = max(1, min(60, int(previous_days or "7")))
@@ -2157,16 +2256,6 @@ async def previous(category: str, interest: str = "", use_embeddings: str = "on"
                 Div(
                     H1("Previous Matches", cls="text-2xl font-bold mb-4"),
                 Form(
-                    Div(
-                        Input(type="hidden", name="category", value=category),
-                        Input(type="hidden", name="interest", value=interest),
-                        Input(type="hidden", name="use_embeddings", value=("on" if use_embeddings != "off" else "off")),
-                        Input(type="hidden", name="top_k", value=str(k)),
-                        Input(type="hidden", name="previous_days", value=str(days)),
-                        Input(type="hidden", name="verbosity", value=verbosity),
-                        Input(type="hidden", name="reasoning", value=reasoning),
-                        Textarea(summary_style or "", name="summary_style", cls="hidden"),
-                    ),
                     Div(*results, cls="grid grid-cols-1 gap-4"),
                     Div(
                         Button(
@@ -2452,6 +2541,7 @@ async def regenerate(
     summary_style: str = "",
     verbosity: str = "medium",
     reasoning: str = "medium",
+    style_selected_title: str = "",
     htmx: HtmxHeaders | None = None,
 ):
     # Overwrite the cached summary for a single paper using the current style
@@ -2462,7 +2552,27 @@ async def regenerate(
             has_hx_header = (hx or "").lower() == "true"
     except Exception:
         has_hx_header = False
+    # Update working session settings with latest style fields if available
+    try:
+        if request is not None:
+            update_active_settings(
+                request,
+                summary_style=summary_style,
+                verbosity=verbosity,
+                reasoning=reasoning,
+                summary_style_title=str(style_selected_title or ""),
+            )
+    except Exception:
+        pass
     is_htmx = has_hx_header or (htmx is not None)
+    # Pull current settings from session when not provided explicitly
+    if request is not None:
+        sess = get_active_settings(request)
+        summary_style = summary_style or sess.get("summary_style") or DEFAULT_SETTINGS["summary_style"]
+        verbosity = verbosity or sess.get("verbosity", "medium")
+        reasoning = reasoning or sess.get("reasoning", "medium")
+        if not style_selected_title:
+            style_selected_title = str(sess.get("summary_style_title") or "")
     print(
         f"[DEBUG] /regenerate called arxiv_id={arxiv_id} hx_header={has_hx_header} htmx_obj={htmx is not None}",
         flush=True,
@@ -2494,7 +2604,7 @@ async def regenerate(
     summary = await asyncio.to_thread(
         openai_summarize,
         text,
-        summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
+        summary_style or DEFAULT_SETTINGS["summary_style"],
         verbosity,
         reasoning,
         title_val,
@@ -2504,6 +2614,12 @@ async def regenerate(
     # If htmx request, return the updated summary block for in-place swap
     sum_id = f"sum-{_css_id(arxiv_id)}"
     pdf_uid = _register_file(pdf_path, "pdf", "application/pdf") if pdf_path.exists() else None
+    cur_title = ""
+    try:
+        if request is not None:
+            cur_title = str(get_active_settings(request).get("summary_style_title") or "")
+    except Exception:
+        cur_title = ""
     block = Div(
         Div(
             summary,
@@ -2528,8 +2644,8 @@ async def regenerate(
                     "setTimeout(()=>{ this.disabled=true; }, 10);"
                     "if(!window.htmx){"
                         "console.log('[DEBUG] Using fetch fallback in regenerate route');"
-                        "const tgt=this.dataset.target; const id=this.dataset.arxivId; const style=this.dataset.summaryStyle||''; const verb=this.dataset.verbosity||'medium'; const reas=this.dataset.reasoning||'medium';"
-                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id, summary_style:style, verbosity:verb, reasoning:reas})})"
+                        "const tgt=this.dataset.target; const id=this.dataset.arxivId;"
+                        "fetch('/regenerate', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({arxiv_id:id})})"
                         ".then(r=>r.text()).then(html=>{ const el=document.querySelector(tgt); if(el){ el.outerHTML=html; if(window.__renderMarkdown){ try{ window.__renderMarkdown(document.querySelector(tgt)); }catch(_e){} } } })"
                         ".catch(err=>{ console.error('[DEBUG] Fetch error:', err); this.textContent='Regenerate summary'; this.disabled=false; this.classList.remove('opacity-50','cursor-not-allowed'); });"
                     "} else {"
@@ -2542,21 +2658,13 @@ async def regenerate(
                 "hx-target": f"#{sum_id}",
                 "hx-swap": "outerHTML",
                 "hx-trigger": "click",
-                "hx-vals": json.dumps({
-                    "arxiv_id": arxiv_id,
-                    "summary_style": summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding",
-                    "verbosity": verbosity,
-                    "reasoning": reasoning,
-                }),
+                "hx-vals": json.dumps({"arxiv_id": arxiv_id}),
                 "hx-on--before-request": "console.log('[DEBUG] htmx before-request event fired in regenerate route')",
                 "hx-on--after-request": "console.log('[DEBUG] htmx after-request event fired in regenerate route')",
                 "hx-on--config-request": "console.log('[DEBUG] htmx config-request event fired in regenerate route', event.detail)",
             },
             **{
                 "data-arxiv-id": arxiv_id,
-                "data-summary-style": (summary_style or "Someone with passing knowledge of the area, but not an expert - use clear, understandable terms that don't need deep specialist understanding"),
-                "data-verbosity": verbosity,
-                "data-reasoning": reasoning,
                 "data-target": f"#{sum_id}",
             },
         ),
