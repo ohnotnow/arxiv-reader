@@ -73,7 +73,9 @@ Quickstart (uv)
 
 5) Run the app:
 
-   - `uv run uvicorn main:app --reload --port 8000`
+   - Recommended (avoids reloads when outputs update):
+     `uv run uvicorn main:app --reload --port 8000 --reload-exclude 'papers/' --reload-exclude '.chroma/' --reload-exclude 'state.json' --reload-exclude 'file_index.json'`
+   - Shortcut: `./run.sh` (same as the command above)
    - Then open http://127.0.0.1:8000 in your browser.
 
 Notes
